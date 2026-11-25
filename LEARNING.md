@@ -132,8 +132,13 @@ PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 ### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
 - 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
 - 원인 가설: Git 설정은 system(Git 설치)·global(내 계정)·local(이 저장소) 3단계로 나뉘고, 같은 항목이 여러 단계에 있을 수 있다.
-- 확인: 출력 순서를 보니 `master`는 맨 위 묶음(system, Git 설치 때 생긴 값), `main`은 `user.name`과 같은 묶음(global, 내가 설정한 값)에 있었다. 첫 커밋은 실제로 `main` 브랜치에 들어갔다.
-- 해결: 같은 항목은 아래 단계(global)가 위 단계(system)를 이긴다. 그래서 `main`이 적용되므로 고치지 않았다. 정확한 출처는 `git config --show-origin --get-all init.defaultBranch`로 파일 위치까지 볼 수 있다.
+- 확인: 값마다 어느 파일에서 왔는지 보는 옵션으로 다시 실행했다. `master`는 Git 설치 폴더의 system 설정 파일, `main`은 내 계정의 `.gitconfig`(global)에서 왔다. 첫 커밋도 실제로 `main` 브랜치에 들어갔다.
+  ```
+  PS> git config --show-origin --get-all init.defaultBranch
+  file:C:/Program Files/Git/etc/gitconfig master
+  file:C:/Users/my/.gitconfig     main
+  ```
+- 해결: 같은 항목은 아래 단계(global)가 위 단계(system)를 이긴다. 그래서 `main`이 적용되므로 고치지 않았다.
 
 ### 2. `git add` 때 LF→CRLF 경고
 - 문제: `git add .`를 하자 파일 3개에 `LF will be replaced by CRLF` 경고가 떴다.
@@ -175,4 +180,5 @@ PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 | 브랜치 | 기록의 갈림길. 큰길(main)은 두고 옆길에서 작업한 뒤 합칠 수 있다 |
 | checkout | 다른 브랜치로 옮겨 가는 명령 |
 | 줄바꿈 문자(LF·CRLF) | 줄이 바뀌는 자리에 들어가는 보이지 않는 표시. 리눅스는 LF, Windows는 CRLF |
+| `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |

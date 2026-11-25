@@ -55,7 +55,7 @@ cd Codyssey_AIO_Mission_01
 
 ## 진행 기록
 ### 2026-11-25 · 주중 세션
-- U2 추가: Public 저장소, README·LEARNING·.gitignore 뼈대, 첫 커밋·push, `git config` 기록, 트러블슈팅 2건 · 변경: 필수 1·11·12 진행중, 브랜치는 main 하나로
+- U2 추가: Public 저장소, README·LEARNING·.gitignore 뼈대, 첫 커밋·push, `git config` 기록, 트러블슈팅 2건(설정 출처 확인 포함) · 변경: 필수 1·11·12 진행중, 브랜치는 main 하나로
 
 <details><summary>이전 기록</summary>
 
