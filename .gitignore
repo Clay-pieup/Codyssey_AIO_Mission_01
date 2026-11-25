@@ -1,0 +1,15 @@
+# 작업 기준 파일 (교육자료 내용 포함, 공개 금지)
+CLAUDE.md
+
+# 미션 명세 (교육자료, 공개 금지)
+*.pdf
+Mission_*.md
+
+# 비밀 정보 (토큰·비밀번호·SSH 개인키)
+.env
+id_*
+*.pem
+
+# Windows가 폴더마다 자동으로 만드는 파일
+Thumbs.db
+desktop.ini
