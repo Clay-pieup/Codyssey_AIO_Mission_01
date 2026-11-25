@@ -22,10 +22,10 @@
 - 결정: Cursor로 연동 증거를 남긴다. Cursor는 VSCode를 바탕으로 만든 편집기라 GitHub 로그인·저장소 연동 기능이 같다.
 - 결과: 얻은 것: 익숙한 도구로 작업한다. / 포기한 것: 명세와 이름이 달라서 평가자에게 대체 이유를 설명해야 한다.
 
-### 3. 브랜치는 main + 작업 브랜치 mission01
-- 맥락: 명세에 브랜치 규칙이 없다.
-- 결정: 첫 커밋만 `main`에 하고, 이후 작업은 `mission01` 브랜치에서 한다. 끝나면 `main`에 합친다.
-- 결과: 얻은 것: `main`에는 늘 완성된 상태만 남는다. / 포기한 것: 합치기 단계가 하나 더 생긴다.
+### 3. 브랜치는 main 하나만 쓴다
+- 맥락: 명세에 브랜치를 만들라는 요구가 없고, 혼자 하는 실습이다. 처음에는 작업 브랜치(`mission01`)를 따로 두려 했다.
+- 결정: 작업 브랜치 없이 `main`에서 바로 작업·커밋·push한다. 만들었던 빈 `mission01` 브랜치는 지웠다.
+- 결과: 얻은 것: 절차가 단순하고, 평가 요청 때 브랜치 이름을 헷갈리지 않는다. / 포기한 것: 실험하다 망가뜨려도 되는 별도 공간.
 
 ### 4. Git은 PowerShell, 실습은 Ubuntu bash
 - 맥락: Git 사용자 정보(이름, noreply 이메일, 기본 브랜치)가 Windows 쪽에 이미 설정돼 있고, Mission 03에서 PowerShell로 커밋해 봤다. 명세 예시는 Ubuntu bash다. Windows와 Ubuntu는 Git 설정을 따로 가진다.
@@ -86,13 +86,63 @@ On branch main
 No commits yet
 
 nothing to commit (create/copy files and use "git add" to track)
+(.gitignore·README.md·LEARNING.md 작성, CLAUDE.md를 저장소 폴더로 이동)
+PS> git add .
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+(LEARNING.md·README.md도 같은 경고 → 시행착오 2)
+PS> git status
+Changes to be committed:
+        new file:   .gitignore
+        new file:   LEARNING.md
+        new file:   README.md
+→ CLAUDE.md가 목록에 없음 = .gitignore가 제대로 막고 있음
+PS> git commit -m "Docs: 저장소 뼈대 추가 - README·LEARNING·.gitignore로 Mission 01 작업 시작 준비"
+PS> git push -u origin main
+→ GitHub에 커밋 a40353e·파일 3개·README 표시 확인
+```
+
+`git config --list` (명세 4-10, 발췌 · 이메일은 가림)
+```
+PS> git config --list
+(system 설정 — Git 설치 때 생김)
+core.autocrlf=true
+credential.helper=manager
+init.defaultbranch=master
+(global 설정 — 내 계정 전체)
+user.name=Clay-pieup
+user.email=(GitHub noreply 주소, 가림)
+init.defaultbranch=main
+core.editor=cursor --wait
+(local 설정 — 이 저장소만)
+remote.origin.url=https://github.com/Clay-pieup/Codyssey_AIO_Mission_01.git
+branch.main.remote=origin
+branch.main.merge=refs/heads/main
+```
+
+브랜치 정리 (설계 결정 3)
+```
+PS> git checkout -b mission01      → Switched to a new branch 'mission01'
+PS> git checkout main              → Switched to branch 'main' / Your branch is up to date with 'origin/main'.
+PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 ```
 
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
+### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
+- 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
+- 원인 가설: Git 설정은 system(Git 설치)·global(내 계정)·local(이 저장소) 3단계로 나뉘고, 같은 항목이 여러 단계에 있을 수 있다.
+- 확인: 출력 순서를 보니 `master`는 맨 위 묶음(system, Git 설치 때 생긴 값), `main`은 `user.name`과 같은 묶음(global, 내가 설정한 값)에 있었다. 첫 커밋은 실제로 `main` 브랜치에 들어갔다.
+- 해결: 같은 항목은 아래 단계(global)가 위 단계(system)를 이긴다. 그래서 `main`이 적용되므로 고치지 않았다. 정확한 출처는 `git config --show-origin --get-all init.defaultBranch`로 파일 위치까지 볼 수 있다.
+
+### 2. `git add` 때 LF→CRLF 경고
+- 문제: `git add .`를 하자 파일 3개에 `LF will be replaced by CRLF` 경고가 떴다.
+- 원인 가설: 줄바꿈 표시 글자가 리눅스(LF)와 Windows(CRLF)에서 다르다. 파일은 LF로 만들어졌고, Windows용 Git이 이를 바꾸려는 것 같다.
+- 확인: `git config --list`에 `core.autocrlf=true`가 있었다. 이 설정은 Windows에서 파일을 꺼낼 때 CRLF로 바꾸고, 저장소에는 LF로 넣는다.
+- 해결: 오류가 아니라 안내라서 그대로 커밋했다. GitHub에 올라간 README도 정상으로 보였다. 대안: 경고를 없애려면 `.gitattributes` 파일로 줄바꿈 규칙을 정할 수 있다 (이번에는 하지 않음).
+
 ## 배운 점
-- U2: (단위가 끝나면 내 말로 정리)
+- U2: commit은 내 PC에 남기는 세이브이고, push는 그 세이브를 GitHub로 복사하는 것이다. Git 설정은 system→global→local 순으로 겹치고 아래가 이긴다. `.gitignore`에 적은 파일은 `git add .`를 해도 담기지 않는다.
 
 ### 과제 목표, 내 말로
 1. **절대 경로와 상대 경로의 차이** (U3)
@@ -100,7 +150,7 @@ nothing to commit (create/copy files and use "git add" to track)
 3. **기존 Dockerfile로 커스텀 이미지 만들기** (U7)
 4. **포트 매핑이 필요한 이유** (U8)
 5. **Docker 볼륨(영속 데이터)** (U9)
-6. **Git과 GitHub의 역할 차이** (U2)
+6. **Git과 GitHub의 역할 차이**: 오늘 commit은 내 PC(Git)에 기록을 남긴 것이고, push는 그 기록을 GitHub에 복사한 것이다. 그래서 다른 사람은 GitHub 주소만으로 내 작업을 보고 clone할 수 있다.
 
 ## 용어 사전
 | 용어 | 쉬운 풀이 |
@@ -120,3 +170,9 @@ nothing to commit (create/copy files and use "git add" to track)
 | 기본 브랜치 | 저장소를 처음 만들 때 생기는 큰길의 이름. 보통 `main` |
 | `cd` | 다른 폴더로 들어가는 명령 (change directory) |
 | `.gitignore` | 저장소에 올리지 않을 파일 목록을 적어 두는 파일 |
+| 스테이징(`git add`) | 커밋하기 전에 이번 세이브에 넣을 파일을 바구니에 담는 단계 |
+| 커밋 메시지 | 이 세이브에서 무엇을 왜 했는지 적는 한 줄 메모. `Docs:`는 문서 작업 표시 |
+| 브랜치 | 기록의 갈림길. 큰길(main)은 두고 옆길에서 작업한 뒤 합칠 수 있다 |
+| checkout | 다른 브랜치로 옮겨 가는 명령 |
+| 줄바꿈 문자(LF·CRLF) | 줄이 바뀌는 자리에 들어가는 보이지 않는 표시. 리눅스는 LF, Windows는 CRLF |
+| 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |

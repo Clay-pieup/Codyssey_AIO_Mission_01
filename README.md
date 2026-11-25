@@ -41,7 +41,7 @@ cd Codyssey_AIO_Mission_01
 | 9 | 바인드 마운트 반영 | ⬜ 대기 | — |
 | 10 | 볼륨 영속성 | ⬜ 대기 | — |
 | 11 | Git 설정 + GitHub·편집기 연동 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
-| 12 | 트러블슈팅 2건 이상 | ⬜ 대기 | [시행착오](LEARNING.md#시행착오) |
+| 12 | 트러블슈팅 2건 이상 | 🔶 진행중 | [시행착오](LEARNING.md#시행착오) (2건, U10에서 최종 정리) |
 | 13 | 보안·재현성 점검 | ⬜ 대기 | — |
 
 **보너스 (완료 0/5)**
@@ -55,7 +55,7 @@ cd Codyssey_AIO_Mission_01
 
 ## 진행 기록
 ### 2026-11-25 · 주중 세션
-- U2 추가: Public 저장소, README·LEARNING·.gitignore 뼈대, 첫 커밋 · 변경: 필수 1·11 진행중
+- U2 추가: Public 저장소, README·LEARNING·.gitignore 뼈대, 첫 커밋·push, `git config` 기록, 트러블슈팅 2건 · 변경: 필수 1·11·12 진행중, 브랜치는 main 하나로
 
 <details><summary>이전 기록</summary>
 
