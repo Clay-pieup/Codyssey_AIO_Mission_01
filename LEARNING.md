@@ -42,6 +42,11 @@
 - 결정: 체크 항목 없이 Public 빈 저장소를 만들고, `git clone`으로 내 PC에 가져왔다.
 - 결과: 얻은 것: GitHub 연결 정보(origin)가 자동으로 설정된다. / 포기한 것: clone할 때 '빈 저장소' 경고가 뜬다 (정상).
 
+### 7. 실습은 저장소 밖 `~/workshop`에서 한다
+- 맥락: 터미널 조작·권한 실습은 파일을 만들고 지우는 연습이다. 저장소 폴더에서 하면 연습 파일이 커밋에 섞일 수 있다.
+- 결정: Ubuntu 홈 폴더의 `~/workshop`에서 실습하고, 명령+출력만 이 파일 '수행 로그'에 옮긴다. 명세 예시 경로(`~/codyssey/practice`)는 그대로 쓰지 않았다.
+- 결과: 얻은 것: 저장소에는 결과 기록만 깔끔하게 남는다. / 포기한 것: 실습 폴더 자체는 GitHub에 없어서 로그로만 증명한다.
+
 ## 핵심 코드 해설
 
 <details><summary>.gitignore — 저장소에 올리지 않을 파일 목록</summary>
@@ -126,6 +131,51 @@ PS> git checkout main              → Switched to branch 'main' / Your branch i
 PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 ```
 
+### U3 · 터미널 조작 로그
+Ubuntu bash에서 실행했다. 여러 줄을 한꺼번에 붙여 넣어 출력이 끝에 모여 나왔기 때문에, 명령 순서대로 출력을 짝지어 정리했다. 실습 폴더는 저장소 밖 `~/workshop`이다 (설계 결정 7).
+```
+$ cd ~
+$ pwd                                  → /home/clay
+$ mkdir -p workshop/notes
+$ cd workshop
+$ pwd                                  → /home/clay/workshop
+$ echo "hello codyssey" > notes/hello.txt
+$ cat notes/hello.txt                  → hello codyssey
+$ touch empty.txt
+$ touch .secret_memo
+$ ls                                   → empty.txt  notes        (숨김 파일 안 보임)
+$ ls -la
+total 12
+drwxr-xr-x 3 clay clay 4096 Nov 25 18:30 .
+drwxr-x--- 7 clay clay 4096 Nov 25 18:30 ..
+-rw-r--r-- 1 clay clay    0 Nov 25 18:30 .secret_memo   ← -a로 숨김 파일이 보임
+-rw-r--r-- 1 clay clay    0 Nov 25 18:30 empty.txt      ← 크기 0 = 빈 파일
+drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 notes
+$ cp notes/hello.txt hello_copy.txt
+$ mv hello_copy.txt hello_renamed.txt
+$ mkdir backup
+$ mv hello_renamed.txt backup/
+$ ls -la backup
+total 12
+drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 .
+drwxr-xr-x 4 clay clay 4096 Nov 25 18:30 ..
+-rw-r--r-- 1 clay clay   15 Nov 25 18:30 hello_renamed.txt   ← 복사·이름변경·이동 확인
+$ cd notes ; pwd                       → /home/clay/workshop/notes   (상대 경로)
+$ cd .. ; pwd                          → /home/clay/workshop         (상대 경로, 한 단계 위)
+$ cd /tmp ; pwd                        → /tmp                        (절대 경로)
+$ cd ~/workshop ; pwd                  → /home/clay/workshop         (~ = /home/clay)
+$ rm backup/hello_renamed.txt
+$ rmdir backup
+$ ls -la
+total 12
+drwxr-xr-x 3 clay clay 4096 Nov 25 18:30 .
+drwxr-x--- 7 clay clay 4096 Nov 25 18:30 ..
+-rw-r--r-- 1 clay clay    0 Nov 25 18:30 .secret_memo
+-rw-r--r-- 1 clay clay    0 Nov 25 18:30 empty.txt
+drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 notes            ← backup 사라짐 = 삭제 확인
+```
+- 참고: Ubuntu 터미널은 처음에 `/mnt/c/Users/…`에서 열렸다. Windows의 C 드라이브가 Ubuntu에서는 `/mnt/c`라는 절대 경로로 보인다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -147,10 +197,11 @@ PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 - 해결: 오류가 아니라 안내라서 그대로 커밋했다. GitHub에 올라간 README도 정상으로 보였다. 대안: 경고를 없애려면 `.gitattributes` 파일로 줄바꿈 규칙을 정할 수 있다 (이번에는 하지 않음).
 
 ## 배운 점
+- U3: `ls`만 치면 숨김 파일이 안 보이고 `-a`를 붙여야 보인다. 같은 `cd notes`도 서 있는 폴더에 따라 성공하거나 실패한다(상대 경로). `rm`은 휴지통 없이 바로 지운다.
 - U2: commit은 내 PC에 남기는 세이브이고, push는 그 세이브를 GitHub로 복사하는 것이다. Git 설정은 system→global→local 순으로 겹치고 아래가 이긴다. `.gitignore`에 적은 파일은 `git add .`를 해도 담기지 않는다.
 
 ### 과제 목표, 내 말로
-1. **절대 경로와 상대 경로의 차이** (U3)
+1. **절대 경로와 상대 경로의 차이**: workshop에서 `cd notes`는 `/home/clay/workshop/notes`로 갔지만, 다른 폴더에서 치면 실패한다(상대 경로). `cd /tmp`는 어디서 쳐도 `/tmp`로 간다(절대 경로). Windows C 드라이브도 Ubuntu에서는 `/mnt/c`라는 절대 경로다.
 2. **파일 권한 r/w/x와 755·644** (U4)
 3. **기존 Dockerfile로 커스텀 이미지 만들기** (U7)
 4. **포트 매핑이 필요한 이유** (U8)
@@ -180,5 +231,17 @@ PS> git branch -d mission01        → Deleted branch mission01 (was a40353e).
 | 브랜치 | 기록의 갈림길. 큰길(main)은 두고 옆길에서 작업한 뒤 합칠 수 있다 |
 | checkout | 다른 브랜치로 옮겨 가는 명령 |
 | 줄바꿈 문자(LF·CRLF) | 줄이 바뀌는 자리에 들어가는 보이지 않는 표시. 리눅스는 LF, Windows는 CRLF |
+| `pwd` | 지금 있는 폴더의 전체 주소를 보여 주는 명령 |
+| `ls` / `ls -la` | 폴더 안 목록 보기. `-a`는 숨김 파일까지, `-l`은 권한·크기·날짜까지 |
+| `mkdir` / `rmdir` | 폴더 만들기 / 빈 폴더 지우기. `mkdir -p`는 중간 폴더도 같이 만든다 |
+| `touch` | 빈 파일 만들기 |
+| `cat` | 파일 내용을 화면에 보여 주기 |
+| `cp` / `mv` / `rm` | 복사 / 옮기기·이름 바꾸기 / 파일 지우기(휴지통 없음) |
+| `>` | 화면에 나올 글자를 파일로 보내 저장하기 |
+| 절대 경로 | `/`부터 적은 전체 주소. 어디서 써도 같은 곳 (예: `/home/clay/workshop`) |
+| 상대 경로 | 지금 위치 기준 주소. 서 있는 곳에 따라 뜻이 달라짐 (예: `notes`, `..`) |
+| `~` | 내 홈 폴더(`/home/clay`)를 줄여 쓴 표시 |
+| 숨김 파일 | 이름이 `.`으로 시작하는 파일. `ls -a`로만 보인다 |
+| `/mnt/c` | Ubuntu(WSL)에서 Windows C 드라이브를 가리키는 경로 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
