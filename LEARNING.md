@@ -176,6 +176,38 @@ drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 notes            ← backup 사라짐 =
 ```
 - 참고: Ubuntu 터미널은 처음에 `/mnt/c/Users/…`에서 열렸다. Windows의 C 드라이브가 Ubuntu에서는 `/mnt/c`라는 절대 경로로 보인다.
 
+### U4 · 권한 실습
+Ubuntu bash에서 `bash -x`로 실행했다. 명령 앞의 `+` 줄은 bash가 실행 직전에 찍은 명령이다 (시행착오 3).
+```
+$ bash -x <<'EOF' … EOF
++ stat -c '%a %A %n' empty.txt notes
+644 -rw-r--r-- empty.txt                ← 파일 변경 전
+755 drwxr-xr-x notes                    ← 폴더 변경 전
++ chmod 755 empty.txt
++ stat -c '%a %A %n' empty.txt
+755 -rwxr-xr-x empty.txt                ← 파일 변경 후 (주인·그룹·나머지에 x 추가)
++ chmod 000 empty.txt
++ cat empty.txt
+cat: empty.txt: Permission denied       ← r이 없으면 주인도 못 읽음
++ chmod 644 empty.txt
++ stat -c '%a %A %n' empty.txt
+644 -rw-r--r-- empty.txt                ← 원래대로
++ chmod 700 notes
++ stat -c '%a %A %n' notes
+700 drwx------ notes                    ← 폴더 변경 후 (주인만 접근)
++ chmod 600 notes
++ cd notes
+bash: line 12: cd: notes: Permission denied   ← 폴더는 x가 있어야 들어갈 수 있음
++ chmod 755 notes
++ stat -c '%a %A %n' notes
+755 drwxr-xr-x notes                    ← 원래대로
+```
+
+| 대상 | 변경 전 | 변경 후 | 효과 확인 |
+|---|---|---|---|
+| 파일 `empty.txt` | 644 `-rw-r--r--` | 755 `-rwxr-xr-x` | 000으로 막자 `cat` 거부 → 644로 복구 |
+| 폴더 `notes` | 755 `drwxr-xr-x` | 700 `drwx------` | 600(x 없음)으로 바꾸자 `cd` 거부 → 755로 복구 |
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -196,13 +228,20 @@ drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 notes            ← backup 사라짐 =
 - 확인: `git config --list`에 `core.autocrlf=true`가 있었다. 이 설정은 Windows에서 파일을 꺼낼 때 CRLF로 바꾸고, 저장소에는 LF로 넣는다.
 - 해결: 오류가 아니라 안내라서 그대로 커밋했다. GitHub에 올라간 README도 정상으로 보였다. 대안: 경고를 없애려면 `.gitattributes` 파일로 줄바꿈 규칙을 정할 수 있다 (이번에는 하지 않음).
 
+### 3. `set -x` 출력에 `++`·`+++` 줄이 쏟아짐
+- 문제: 명령과 출력을 짝지어 보려고 `set -x`를 켜고 권한 실습을 붙여 넣었더니, 명령마다 `++ __systemd_osc_context…` 같은 줄이 수십 줄씩 섞여 앞부분 출력이 화면 밖으로 밀려났다.
+- 원인 가설: `set -x`는 내가 친 명령뿐 아니라 셸이 몰래 실행하는 명령까지 찍는다. 프롬프트(`clay@…$`)를 띄울 때 도는 도우미 명령이 함께 찍힌 것 같다.
+- 확인: 쏟아진 줄의 이름이 `__systemd_osc_context`(프롬프트 도우미)였고, 프롬프트가 뜨는 자리마다 같은 묶음이 반복됐다. 그 줄에는 컴퓨터 이름과 기기 고유번호까지 들어 있었다.
+- 해결: 프롬프트를 띄우지 않는 새 bash에서 명령 묶음만 실행했다 (`bash -x <<'EOF' … EOF`). `+ 명령`과 결과만 깔끔하게 나왔다. 컴퓨터 이름·기기 번호가 든 첫 출력은 기록에 넣지 않았다.
+
 ## 배운 점
+- U4: 권한은 실제로 막는다. r이 없으면 주인도 못 읽고, 폴더에 x가 없으면 들어갈 수 없다. 숫자는 r4·w2·x1을 칸마다 더한 값이다.
 - U3: `ls`만 치면 숨김 파일이 안 보이고 `-a`를 붙여야 보인다. 같은 `cd notes`도 서 있는 폴더에 따라 성공하거나 실패한다(상대 경로). `rm`은 휴지통 없이 바로 지운다.
 - U2: commit은 내 PC에 남기는 세이브이고, push는 그 세이브를 GitHub로 복사하는 것이다. Git 설정은 system→global→local 순으로 겹치고 아래가 이긴다. `.gitignore`에 적은 파일은 `git add .`를 해도 담기지 않는다.
 
 ### 과제 목표, 내 말로
 1. **절대 경로와 상대 경로의 차이**: workshop에서 `cd notes`는 `/home/clay/workshop/notes`로 갔지만, 다른 폴더에서 치면 실패한다(상대 경로). `cd /tmp`는 어디서 쳐도 `/tmp`로 간다(절대 경로). Windows C 드라이브도 Ubuntu에서는 `/mnt/c`라는 절대 경로다.
-2. **파일 권한 r/w/x와 755·644** (U4)
+2. **파일 권한 r/w/x와 755·644**: empty.txt를 000으로 막자 주인인 나도 `cat`이 거부됐고, notes 폴더에서 x를 빼자 `cd`로 들어갈 수 없었다. 파일의 x는 실행, 폴더의 x는 '들어가기'다. 숫자는 r4+w2+x1의 합이라 755=rwxr-xr-x, 644=rw-r--r--다.
 3. **기존 Dockerfile로 커스텀 이미지 만들기** (U7)
 4. **포트 매핑이 필요한 이유** (U8)
 5. **Docker 볼륨(영속 데이터)** (U9)
@@ -243,5 +282,13 @@ drwxr-xr-x 2 clay clay 4096 Nov 25 18:30 notes            ← backup 사라짐 =
 | `~` | 내 홈 폴더(`/home/clay`)를 줄여 쓴 표시 |
 | 숨김 파일 | 이름이 `.`으로 시작하는 파일. `ls -a`로만 보인다 |
 | `/mnt/c` | Ubuntu(WSL)에서 Windows C 드라이브를 가리키는 경로 |
+| 권한(permission) | 누가 파일을 읽고(r)·고치고(w)·실행하는지(x) 정한 규칙. 주인·그룹·나머지 세 칸 |
+| r / w / x | 읽기(4) / 쓰기(2) / 실행(1). 폴더에서 x는 '안으로 들어가기' |
+| 755 · 644 | 칸마다 숫자를 더한 권한. 755=rwxr-xr-x(실행 파일·폴더), 644=rw-r--r--(일반 파일) |
+| `chmod` | 권한을 바꾸는 명령 (change mode) |
+| `stat` | 파일의 자세한 정보(권한 숫자·글자 등)를 보여 주는 명령 |
+| `set -x` / `bash -x` | 명령을 실행하기 직전에 `+ 명령`으로 찍어 주는 설정 / 그 설정으로 새 bash를 실행 |
+| 히어독(`<<'EOF'`) | 여러 줄을 한 덩어리로 묶어 명령에 넘기는 방법. `EOF` 줄까지가 한 덩어리 |
+| 프롬프트 | 명령을 기다리며 줄 앞에 보이는 `clay@…$` 부분 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
