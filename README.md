@@ -27,7 +27,7 @@ cd Codyssey_AIO_Mission_01
 - Docker 실습을 따라 하는 명령은 단위마다 추가한다 (U5~U9).
 
 ## 체크리스트
-**필수 (완료 4/13)**
+**필수 (완료 5/13)**
 | # | 항목 | 상태 | 증거·해설 |
 |---|---|---|---|
 | 1 | 공개 저장소 + README 기본 구성 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
@@ -35,7 +35,7 @@ cd Codyssey_AIO_Mission_01
 | 3 | 권한 실습 | ✅ 완료 | [수행 로그](LEARNING.md#u4--권한-실습) |
 | 4 | Docker 설치·점검 | ✅ 완료 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) |
 | 5 | Docker 기본 운영 명령 | ✅ 완료 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) |
-| 6 | 컨테이너 실행 실습 (hello-world·ubuntu·attach/exec) | 🔶 진행중 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) (hello-world) |
+| 6 | 컨테이너 실행 실습 (hello-world·ubuntu·attach/exec) | ✅ 완료 | [hello-world](LEARNING.md#u5--docker-점검기본-운영-명령) · [ubuntu·attach/exec](LEARNING.md#u6--ubuntu-컨테이너attachexec-관찰) |
 | 7 | Dockerfile 커스텀 이미지 | ⬜ 대기 | — |
 | 8 | 포트 매핑 접속 증거 | ⬜ 대기 | — |
 | 9 | 바인드 마운트 반영 | ⬜ 대기 | — |
@@ -55,6 +55,7 @@ cd Codyssey_AIO_Mission_01
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U6 추가: ubuntu 컨테이너 진입(ls·echo·os-release), attach와 exec 차이 관찰(exit 뒤 Exited vs Up) · 변경: 필수 6 완료
 - U5 추가: Docker 점검(--version·info), hello-world, 이미지 받기·목록, 컨테이너 실행·logs·stats·중지·목록, 트러블슈팅 4·5 · 변경: 필수 4·5 완료, 6 진행중 · 수정: WSL integration 켬
 
 <details><summary>이전 기록</summary>

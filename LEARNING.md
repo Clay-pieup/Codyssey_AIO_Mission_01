@@ -274,6 +274,58 @@ eb4c5212f71e   hello-world   "/hello"                 16 seconds ago   Exited (0
 - `Exited (137)`: u5-ticker는 무한 반복이라 스스로 끝나지 않는다. 안의 `sh`가 `docker stop`의 정지 신호를 받아들이지 않아 Docker가 강제로 껐다. 137 = 128 + 9(강제 종료 신호 번호).
 - `unruffled_elbakyan`: `--name`을 주지 않아 Docker가 무작위로 붙인 이름이다.
 
+### U6 · ubuntu 컨테이너·attach/exec 관찰
+컨테이너 안에서 직접 입력하는 실습이라 한 줄씩 입력했다. `$`는 내 Ubuntu(WSL), `root@709857a7a92c:/#`는 컨테이너 안이다. 컨테이너 안 프롬프트의 `709857a7a92c`는 컨테이너 ID다.
+```
+① 만들면서 들어가기 (run -it)
+$ docker run -it --name u6-ubuntu ubuntu:24.04 bash
+Unable to find image 'ubuntu:24.04' locally
+24.04: Pulling from library/ubuntu
+Status: Downloaded newer image for ubuntu:24.04
+root@709857a7a92c:/# ls
+bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
+root@709857a7a92c:/# echo "hello from container"
+hello from container
+root@709857a7a92c:/# head -2 /etc/os-release
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+NAME="Ubuntu"
+root@709857a7a92c:/# exit
+$ docker ps -a --filter name=u6-ubuntu
+CONTAINER ID   IMAGE          COMMAND   CREATED          STATUS                     NAMES
+709857a7a92c   ubuntu:24.04   "bash"    19 seconds ago   Exited (0) 6 seconds ago   u6-ubuntu   ← 나오니 멈춤
+
+② 주 프로그램에 다시 붙기 (attach)
+$ docker start u6-ubuntu
+$ docker attach u6-ubuntu
+root@709857a7a92c:/# echo "attached"
+attached
+root@709857a7a92c:/# exit
+$ docker ps -a --filter name=u6-ubuntu
+709857a7a92c   ubuntu:24.04   "bash"    About a minute ago   Exited (0) 5 seconds ago   u6-ubuntu   ← attach에서 나와도 멈춤
+
+③ 새 bash를 하나 더 열기 (exec)
+$ docker start u6-ubuntu
+$ docker exec -it u6-ubuntu bash
+root@709857a7a92c:/# echo "exec shell"
+exec shell
+root@709857a7a92c:/# exit
+$ docker ps --filter name=u6-ubuntu
+709857a7a92c   ubuntu:24.04   "bash"    About a minute ago   Up 9 seconds   u6-ubuntu   ← exec에서 나와도 계속 돎
+
+정리
+$ docker stop u6-ubuntu
+$ docker ps -a --filter name=u6-ubuntu
+709857a7a92c   ubuntu:24.04   "bash"    About a minute ago   Exited (137) Less than a second ago   u6-ubuntu
+```
+
+| 방법 | 들어가는 곳 | `exit` 뒤 컨테이너 |
+|---|---|---|
+| `docker run -it … bash` | 새 컨테이너의 주 프로그램(bash) | 멈춤 `Exited (0)` |
+| `docker attach` | 이미 도는 주 프로그램에 다시 붙음 | 멈춤 `Exited (0)` |
+| `docker exec -it … bash` | 주 프로그램 옆에 새 bash를 하나 더 엶 | 계속 돎 `Up` |
+
+**관찰 정리 (내 말로)**: attach로 들어가 exit하자 컨테이너가 Exited가 됐고, exec로 들어가 exit했을 때는 Up이 유지됐다. attach는 주 프로그램에 붙는 것이고, exec는 새 프로그램을 하나 더 여는 것이기 때문이다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -313,6 +365,7 @@ eb4c5212f71e   hello-world   "/hello"                 16 seconds ago   Exited (0
 - 해결: Docker Desktop을 켜고 WSL integration을 켠 뒤 Apply & Restart Engine을 눌렀다. 새 Ubuntu 탭에서 `which -a docker` 맨 위가 `/usr/bin/docker`, `docker info`가 `Server: 29.9.3 / OS: Docker Desktop`으로 바뀐 것을 확인했다. U1에서 켰다고 생각했지만 실제로는 꺼져 있었으므로, 설정은 화면이 아니라 명령 결과로 확인해야 한다는 것을 배웠다.
 
 ## 배운 점
+- U6: 컨테이너는 주 프로그램이 살아 있는 동안만 돈다. 운영 중인 컨테이너를 들여다볼 때는 attach가 아니라 exec로 들어가야 실수로 멈추지 않는다. 컨테이너 안은 내 Ubuntu와 별개의 Ubuntu(24.04.5)였다.
 - U5: 이미지는 밀키트(레시피+재료), 컨테이너는 그 밀키트로 만든 요리 한 그릇이다. 종료 코드 0은 정상 종료, 137은 강제 종료다. 설정은 화면이 아니라 명령 결과로 확인해야 한다.
   - **Ubuntu를 쓰는 이유**: 인터넷 서비스를 돌리는 서버는 대부분 리눅스라서, 내 PC도 같은 리눅스(Ubuntu)여야 '내 PC에선 되는데 서버에선 안 되는' 일이 줄어든다. Windows에서는 WSL2로 Ubuntu를 함께 띄운다.
   - **Docker를 쓰는 이유**: 프로그램과 필요한 재료를 한 상자(컨테이너)에 담아 어느 컴퓨터에서든 똑같이 실행한다(재현성). 상자끼리 섞이지 않고(격리), 컴퓨터를 통째로 흉내 내는 가상머신보다 가볍다(alpine 이미지 12MB).
@@ -389,5 +442,13 @@ eb4c5212f71e   hello-world   "/hello"                 16 seconds ago   Exited (0
 | `grep` | 많은 출력 중 원하는 글자가 든 줄만 골라 보기 |
 | 표준 입력(stdin) | 프로그램이 글자를 받아들이는 통로. 보통은 키보드 |
 | 스크립트 | 실행할 명령을 차례로 적어 둔 파일 |
+| `-it` | `-i`(키보드 입력 연결) + `-t`(터미널 화면 연결). 컨테이너 안에서 대화하듯 입력할 때 쓴다 |
+| `docker start` | 멈춘 컨테이너를 다시 켜기 (새로 만들지 않음) |
+| attach | 실행 중인 컨테이너의 주 프로그램에 다시 붙기. 나가면 컨테이너도 멈춘다 |
+| exec | 실행 중인 컨테이너 안에서 새 프로그램을 하나 더 실행하기. 나가도 컨테이너는 계속 돈다 |
+| 주 프로그램(PID 1) | 컨테이너를 만들 때 실행한 첫 프로그램. 이것이 끝나면 컨테이너도 끝난다 |
+| `--filter name=…` | 목록에서 조건에 맞는 것만 보기 |
+| `/etc/os-release` | 리눅스 이름·버전이 적힌 파일 |
+| root | 리눅스의 관리자 계정. 컨테이너 안에서는 기본으로 root다 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
