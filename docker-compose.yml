@@ -1,0 +1,8 @@
+name: clay-workshop
+
+services:
+  web:
+    build: .
+    image: clay-workshop:1.0
+    ports:
+      - "8090:8080"

@@ -76,15 +76,15 @@ docker exec vol-2 cat /data/note.txt     # saved
 | 12 | 트러블슈팅 2건 이상 | ✅ 완료 | [시행착오 6건](LEARNING.md#시행착오) |
 | 13 | 보안·재현성 점검 | ✅ 완료 | [U10 점검](LEARNING.md#u10--편집기-연동보안재현성-점검) |
 
-**보너스 (완료 0/5)**: Compose 기초 · Compose 멀티 컨테이너 · Compose 운영 명령어 · 환경 변수 활용 · GitHub SSH 키 (모두 ⬜ 대기)
+**보너스 (완료 2/5)**: ✅ Compose 기초 · ✅ Compose 운영 명령어 (`docker compose up -d --build` → localhost:8090, [수행 로그](LEARNING.md#u12--docker-compose-기초운영-명령어-보너스-13)) · ⬜ 멀티 컨테이너 · ⬜ 환경 변수 · ⬜ SSH 키
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U12 추가: docker-compose.yml(서비스 1개, 8090), up·ps·logs·down · 변경: 보너스 1·3 완료
 - U11 추가: 발표 슬라이드 15장(쉬운 말, 시연 순서 포함), `docs/slides.pdf` · 변경: 상태 평가 대기
 - U10 추가: 실행 환경 버전, 검증 방법 표, Cursor GitHub 연동 스크린샷, 보안·재현성 점검 · 변경: 필수 1·11·12·13 완료 (13/13)
 - U8·U9 추가: 포트 매핑(8080·8081)·바인드 마운트 전·후 비교(스크린샷 2장), 볼륨 영속성 · 변경: 필수 8·9·10 완료
-- U7 추가: Dockerfile·.dockerignore, 빌드·실행 healthy · 변경: 필수 7 완료 · 수정: U7 파일은 U6 커밋(d5a993d)에 먼저 들어감
-- U5·U6 추가: Docker 점검·운영 명령, ubuntu 진입·attach/exec 관찰, 트러블슈팅 4·5 · 변경: 필수 4·5·6 완료 · 수정: WSL integration 켬
+- U5~U7 추가: Docker 점검·운영, ubuntu 진입·attach/exec, Dockerfile·.dockerignore(healthy), 트러블슈팅 4~6 · 변경: 필수 4~7 완료 · 수정: WSL integration 켬, U7 파일은 d5a993d에 먼저 커밋
 
 <details><summary>이전 기록</summary>
 

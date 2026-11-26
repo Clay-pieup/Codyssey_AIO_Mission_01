@@ -67,6 +67,11 @@
 - 결정: 비유 없이 초등학생 3학년도 이해할 수 있는 쉬운 말로 15장을 만들고, 장마다 발표 대본(발표자 노트)을 넣었다. 마지막 장은 평가 때 그대로 따라 칠 시연 명령 5단계다. PDF는 `docs/slides.pdf`로 저장소에 두고 `.gitignore`에 `!docs/*.pdf` 예외를 넣었다(명세 PDF는 계속 막힘).
 - 결과: 얻은 것: 링크 권한 없이 GitHub에서 바로 볼 수 있고, 시연 순서가 정해져 있어 당황하지 않는다. / 포기한 것: 비유로 짧게 설명하는 방식.
 
+### 12. Compose는 서비스 1개, 포트 8090으로 (보너스 1·3)
+- 맥락: 보너스 중 가장 빨리 끝나는 것을 하나 골랐다. U7 이미지와 Dockerfile을 그대로 쓸 수 있는 Compose 기초는 운영 명령어(보너스 3)까지 함께 보여 줄 수 있다.
+- 결정: 서비스 `web` 하나, `build: .`로 U7과 같은 이미지(`clay-workshop:1.0`), 포트는 U8 실습(8080~8082)과 겹치지 않게 8090으로 했다.
+- 결과: 얻은 것: 긴 `docker run` 명령 대신 파일 하나와 `docker compose up` 한 줄로 실행한다. / 포기한 것: 멀티 컨테이너(보너스 2)·환경 변수(보너스 4)·SSH 키(보너스 5)는 하지 않았다.
+
 ## 핵심 코드 해설
 
 <details><summary>.gitignore — 저장소에 올리지 않을 파일 목록</summary>
@@ -139,6 +144,29 @@ server {
 | 응답 헤더 `X-Workshop: clay-m01` | 응답이 기본 nginx가 아니라 내 설정에서 왔다는 증거 | 헤더에 `X-Workshop: clay-m01` |
 | `/health` + `HEALTHCHECK` | 컨테이너가 실제로 일하는지 Docker가 스스로 확인 | `ok`, `(healthy)` |
 | 버전 고정 + `LABEL` | 다시 빌드해도 같은 결과, 이미지 설명 붙이기 | Labels에 title·description |
+
+<details><summary>docker-compose.yml — 실행 설정을 적어 둔 파일 (보너스 1)</summary>
+
+```yaml
+name: clay-workshop          # 이 실행 묶음의 이름
+services:                    # 실행할 서비스(컨테이너) 목록
+  web:                       # 서비스 이름. 하나만 둠
+    build: .                 # 이 폴더의 Dockerfile로 이미지를 만든다
+    image: clay-workshop:1.0 # 만든 이미지에 붙일 이름 (U7과 같은 이미지)
+    ports:
+      - "8090:8080"          # 내 컴퓨터 8090번 → 컨테이너 8080번
+```
+(해설용으로 줄 끝에 설명을 붙였다. 실제 파일에는 설명이 없다.)
+
+| 같은 일 | `docker run`으로 (U7·U8) | Compose로 (U12) |
+|---|---|---|
+| 이미지 만들기 | `docker build -t clay-workshop:1.0 .` | `docker compose up -d --build` 한 줄에 포함 |
+| 실행 + 포트 | `docker run -d --name u8-a -p 8080:8080 clay-workshop:1.0` | 파일의 `ports`에 적어 둠 |
+| 끄고 지우기 | `docker stop` + `docker rm` | `docker compose down` (네트워크까지) |
+
+- 실행 설정이 명령어(내 머릿속)가 아니라 파일(저장소)에 있으니, 누가 받아도 같은 설정으로 실행된다. 이것이 명세가 말한 '문서화된 실행 설정'이다.
+
+</details>
 
 ## 수행 로그
 
@@ -559,6 +587,54 @@ $ grep -rnIiE "ghp_|github_pat_|token[:=]|password|secret[:=]|BEGIN (RSA|OPENSSH
 - PDF로 내려받아 `docs/slides.pdf`에 두었다(15쪽). 공개 전에 PDF 글자를 검색해 이메일·컴퓨터 이름·업무 정보가 없는 것을 확인했다.
 - 온라인 보기: [https://claude.ai/artifact/5rnQfyb18TUmjcvFKHphei](https://claude.ai/artifact/5rnQfyb18TUmjcvFKHphei) (내 계정에서만 열림. 다른 사람은 PDF로 본다)
 
+### U12 · Docker Compose 기초·운영 명령어 (보너스 1·3)
+저장소 폴더에서 `~/workshop/u12.sh`를 `bash -x`로 실행했다. `config` 출력의 빌드 경로는 개인 폴더 이름이 있어 `(저장소 폴더)`로 바꿔 적었다.
+```
++ docker compose version
+Docker Compose version v5.7.0
++ docker compose config
+name: clay-workshop
+services:
+  web:
+    image: clay-workshop:1.0
+    build:
+      context: (저장소 폴더)
+      dockerfile: Dockerfile
+    ports:
+      - mode: ingress
+        target: 8080
+        published: "8090"
+        protocol: tcp
+networks:
+  default:
+    name: clay-workshop_default              ← 적지 않았는데 Compose가 네트워크를 만듦
++ docker compose up -d --build                  ← 보너스 3: up
+[+] Building 6.4s (10/10) FINISHED
+ => => transferring context: 120B
+ => CACHED [2/3] COPY conf/default.conf /etc/nginx/conf.d/default.conf   ← 바뀐 게 없어 U7 층을 다시 씀
+ => CACHED [3/3] COPY app/ /usr/share/nginx/html/
+ ✓ Image clay-workshop:1.0          Built
+ ✓ Network clay-workshop_default    Created
+ ✓ Container clay-workshop-web-1    Started
++ docker compose ps                             ← 보너스 3: ps
+NAME                  IMAGE               SERVICE   STATUS                    PORTS
+clay-workshop-web-1   clay-workshop:1.0   web       Up 12 seconds (healthy)   0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
++ curl -s -i http://localhost:8090/ | grep -E 'HTTP/|X-Workshop'
+HTTP/1.1 200 OK
+X-Workshop: clay-m01
++ docker compose logs --tail 5 web              ← 보너스 3: logs
+web-1  | … [notice] 1#1: start worker process 40
+web-1  | … [notice] 1#1: start worker process 41
+web-1  | … [notice] 1#1: start worker process 42
+web-1  | 127.0.0.1 - - [26/Nov/2026:10:52:14 +0000] "GET /health HTTP/1.1" 200 3 "-" "Wget" "-"      ← 헬스체크 요청
+web-1  | 172.18.0.1 - - [26/Nov/2026:10:52:16 +0000] "GET / HTTP/1.1" 200 297 "-" "curl/8.18.0" "-"  ← 내 curl 요청
++ docker compose down                           ← 보너스 3: down
+ ✓ Container clay-workshop-web-1  Removed
+ ✓ Network clay-workshop_default  Removed
++ docker compose ps -a
+NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS      ← 모두 정리됨
+```
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -613,6 +689,7 @@ $ grep -rnIiE "ghp_|github_pat_|token[:=]|password|secret[:=]|BEGIN (RSA|OPENSSH
 - 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
 
 ## 배운 점
+- U12: 실행 설정을 파일로 적어 두면 명령을 외울 필요가 없고 누가 해도 같다. 바뀐 게 없으면 Docker가 이전 층을 다시 써서(CACHED) 빌드가 빠르다. Compose는 네트워크까지 알아서 만들고 지운다.
 - U11: 평가 기준 순서로 정리하니 무엇을 왜 했는지 한 줄로 말할 수 있게 됐다. 시연 명령을 미리 정해 두면 평가 때 당황하지 않는다.
 - U10: 증거는 '했다'가 아니라 '보여 줄 수 있어야' 한다. 공개하기 전에 grep으로 민감정보를 기계적으로 찾고, 스크린샷은 필요한 부분만 잘라 넣는다. 컨테이너 안 OS는 내 PC OS 버전과 상관없이 이미지대로 돈다.
 - U9: 컨테이너는 지우면 안의 파일도 사라진다. 남겨야 할 데이터는 볼륨에 둔다. `-v` 앞이 경로면 바인드 마운트, 이름이면 볼륨이다.
@@ -731,5 +808,10 @@ $ grep -rnIiE "ghp_|github_pat_|token[:=]|password|secret[:=]|BEGIN (RSA|OPENSSH
 | 소스 제어 | 편집기 안에서 Git 변경·커밋·push를 버튼으로 다루는 화면 |
 | Authorize(권한 승인) | 편집기가 내 GitHub 계정을 대신 쓰도록 허락하는 단계. 비밀번호 대신 토큰을 건넨다 |
 | 재현성 점검 | 다른 사람이 README만 보고 같은 결과를 얻을 수 있는지 확인하는 일 |
+| Docker Compose | 컨테이너 실행 설정을 `docker-compose.yml`에 적어 두고 한 줄로 켜고 끄는 도구 |
+| YAML | 들여쓰기(빈칸)로 구조를 나타내는 설정 파일 형식. 빈칸 수가 틀리면 오류 |
+| 서비스(service) | Compose에서 실행할 컨테이너 하나하나 |
+| 캐시(CACHED) | 이전에 만든 층을 다시 쓰는 것. 바뀐 게 없으면 다시 만들지 않아 빠르다 |
+| 네트워크 | 컨테이너끼리 이어 주는 길. Compose가 `이름_default`로 자동으로 만든다 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
