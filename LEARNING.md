@@ -70,7 +70,12 @@
 ### 12. Compose는 서비스 1개, 포트 8090으로 (보너스 1·3)
 - 맥락: 보너스 중 가장 빨리 끝나는 것을 하나 골랐다. U7 이미지와 Dockerfile을 그대로 쓸 수 있는 Compose 기초는 운영 명령어(보너스 3)까지 함께 보여 줄 수 있다.
 - 결정: 서비스 `web` 하나, `build: .`로 U7과 같은 이미지(`clay-workshop:1.0`), 포트는 U8 실습(8080~8082)과 겹치지 않게 8090으로 했다.
-- 결과: 얻은 것: 긴 `docker run` 명령 대신 파일 하나와 `docker compose up` 한 줄로 실행한다. / 포기한 것: 멀티 컨테이너(보너스 2)·환경 변수(보너스 4)·SSH 키(보너스 5)는 하지 않았다.
+- 결과: 얻은 것: 긴 `docker run` 명령 대신 파일 하나와 `docker compose up` 한 줄로 실행한다. / 포기한 것: 서비스는 하나뿐이다(멀티 컨테이너·환경 변수는 U13).
+
+### 13. 환경 변수는 nginx 템플릿으로, 멀티 컨테이너는 별도 파일로 (보너스 2·4)
+- 맥락: 포트와 모드를 환경 변수로 바꾸려면 nginx 설정의 숫자를 변수로 바꿔야 한다. Dockerfile을 고치면 U7~U12 결과가 바뀐다.
+- 결정: nginx 공식 이미지의 템플릿 기능(`/etc/nginx/templates/*.template`을 시작할 때 환경 변수로 채움)을 쓰고, 템플릿 폴더를 읽기 전용으로 연결했다. 웹 서버 + 보조 서비스(checker)는 `docker-compose.multi.yml`에 따로 두고 포트 8091을 썼다.
+- 결과: 얻은 것: 이미지를 다시 만들지 않고 `WEB_PORT=9090 APP_MODE=prod`만으로 포트·모드가 바뀐다. 기존 파일과 결과는 그대로다. / 포기한 것: 실행할 때 `-f docker-compose.multi.yml`을 붙여야 한다.
 
 ## 핵심 코드 해설
 
@@ -165,6 +170,47 @@ services:                    # 실행할 서비스(컨테이너) 목록
 | 끄고 지우기 | `docker stop` + `docker rm` | `docker compose down` (네트워크까지) |
 
 - 실행 설정이 명령어(내 머릿속)가 아니라 파일(저장소)에 있으니, 누가 받아도 같은 설정으로 실행된다. 이것이 명세가 말한 '문서화된 실행 설정'이다.
+
+</details>
+
+<details><summary>conf/templates/default.conf.template · docker-compose.multi.yml — 환경 변수와 멀티 컨테이너 (보너스 2·4)</summary>
+
+`conf/default.conf`와 같고 두 줄만 다르다.
+```nginx
+listen ${WEB_PORT};                          # 포트를 숫자 대신 환경 변수로
+add_header X-Mode "${APP_MODE}" always;      # 응답에 지금 모드(dev/prod)를 표시
+```
+- nginx 이미지는 시작할 때 `/etc/nginx/templates/`의 `.template` 파일에서 `${이름}`을 환경 변수 값으로 바꿔 `/etc/nginx/conf.d/default.conf`를 만든다. `$uri`처럼 환경 변수가 아닌 것은 그대로 남는다.
+
+```yaml
+services:
+  web:                                   # 서비스 1: 내 웹 서버 (U7 이미지 그대로)
+    build: .
+    image: clay-workshop:1.0
+    environment:                         # 환경 변수: 밖에서 주면 그 값, 안 주면 기본값
+      WEB_PORT: ${WEB_PORT:-8080}
+      APP_MODE: ${APP_MODE:-dev}
+    volumes:
+      - ./conf/templates:/etc/nginx/templates:ro   # 템플릿 폴더를 읽기 전용으로 연결
+    ports:
+      - "8091:${WEB_PORT:-8080}"         # 내 컴퓨터 8091 → 컨테이너 WEB_PORT
+    healthcheck:                         # 포트가 바뀌어도 맞는 주소로 검사
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${WEB_PORT}/health || exit 1"]
+  checker:                               # 서비스 2: 보조 서비스
+    image: alpine:3.20
+    depends_on:
+      web:
+        condition: service_healthy       # web이 healthy가 된 뒤 시작
+    environment:
+      TARGET: http://web:${WEB_PORT:-8080}/health   # IP 대신 서비스 이름 web
+    command:                             # 5초마다 web에 물어보고 답을 찍는다
+      - sh
+      - -c
+      - 'while true; do echo "$$(date +%H:%M:%S) web 응답 = $$(wget -qO- $$TARGET)"; sleep 5; done'
+```
+(해설용으로 줄 끝에 설명을 붙이고 interval 등 일부 줄은 줄였다.)
+- `$$`: Compose 파일에서 `$`를 컨테이너에 그대로 넘기려면 두 번 쓴다. 한 번만 쓰면 Compose가 먼저 값으로 바꾼다.
+- Compose가 만든 네트워크 안에서는 서비스 이름(`web`)으로 서로를 찾는다(서비스 디스커버리).
 
 </details>
 
@@ -635,6 +681,49 @@ web-1  | 172.18.0.1 - - [26/Nov/2026:10:52:16 +0000] "GET / HTTP/1.1" 200 297 "-
 NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS      ← 모두 정리됨
 ```
 
+### U13 · 멀티 컨테이너·환경 변수 (보너스 2·4)
+첫 실행은 YAML 문법 오류로 모든 명령이 실패했다(시행착오 7). `command`를 고친 뒤 `~/workshop/u13.sh`를 `bash -x`로 다시 실행했다.
+```
+(첫 실행)
++ docker compose -f docker-compose.multi.yml up -d
+go-yaml load error in scanner at L27.C67: mapping values are not allowed in this context
+
+(고친 뒤)
++ docker compose -f docker-compose.multi.yml up -d
+ ✓ Network clay-workshop-multi_default    Created
+ ✓ Container clay-workshop-multi-web-1    Healthy    10.9s
+ ✓ Container clay-workshop-multi-checker-1 Started   10.9s     ← web이 healthy가 된 뒤 시작(depends_on)
++ docker compose -f docker-compose.multi.yml ps
+NAME                            IMAGE               SERVICE   STATUS                    PORTS
+clay-workshop-multi-checker-1   alpine:3.20         checker   Up 15 seconds
+clay-workshop-multi-web-1       clay-workshop:1.0   web       Up 25 seconds (healthy)   0.0.0.0:8091->8080/tcp   ← 2개 함께 실행
++ docker compose -f docker-compose.multi.yml logs --tail 3 checker
+checker-1  | 10:58:58 web 응답 = ok
+checker-1  | 10:59:03 web 응답 = ok
+checker-1  | 10:59:08 web 응답 = ok                                     ← checker가 이름 web으로 통신
++ docker compose -f docker-compose.multi.yml exec -T checker wget -qO- http://web:8080/ | grep '<h1>'
+  <h1>Clay의 작업실</h1>
++ curl -s -i http://localhost:8091/ | grep -E 'HTTP/|X-Mode'
+HTTP/1.1 200 OK
+X-Mode: dev                                                           ← 기본값
++ docker compose -f docker-compose.multi.yml down
+
+(환경 변수를 바꿔 다시 실행)
++ WEB_PORT=9090 APP_MODE=prod docker compose -f docker-compose.multi.yml up -d
++ docker compose -f docker-compose.multi.yml ps
+clay-workshop-multi-web-1       clay-workshop:1.0   web       Up 25 seconds (healthy)   0.0.0.0:8091->9090/tcp   ← 컨테이너 포트 9090
++ curl -s -i http://localhost:8091/ | grep -E 'HTTP/|X-Mode'
+HTTP/1.1 200 OK
+X-Mode: prod                                                          ← 모드 바뀜
++ docker compose -f docker-compose.multi.yml exec -T web grep listen /etc/nginx/conf.d/default.conf
+    listen 9090;                                                      ← 템플릿이 환경 변수로 채워짐
++ docker compose -f docker-compose.multi.yml logs --tail 2 checker
+checker-1  | 10:59:34 web 응답 = ok
+checker-1  | 10:59:39 web 응답 = ok                                     ← checker도 web:9090으로 물어봄
++ docker compose -f docker-compose.multi.yml down
+```
+- 이미지는 다시 만들지 않았다. 환경 변수 `WEB_PORT` 하나가 web의 nginx 설정·포트 연결·헬스체크와 checker의 주소에 함께 반영됐다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -646,6 +735,7 @@ NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS      ← 모�
 | 4 | `bash -x <<'EOF'`에서 docker 뒤 명령이 사라짐 | 스크립트 파일 + `bash -x 파일` | U5 |
 | 5 | docker 엔진 연결 실패(`npipe`) | Docker Desktop WSL integration 켬 | U5 |
 | 6 | U6 커밋에 U7 파일이 섞임 | 기록으로 남김, 다음 단위 파일은 push 확인 후 작성 | U7 |
+| 7 | YAML의 `: ` 때문에 Compose 파일을 못 읽음 | 명령을 목록으로 나누고 작은따옴표로 감쌈 | U13 |
 
 ### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
 - 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
@@ -688,7 +778,14 @@ NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS      ← 모�
 - 확인: 커밋 출력의 `create mode … Dockerfile` 등 4줄과 `6 files changed`로 확인했다.
 - 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
 
+### 7. YAML의 `: ` 때문에 Compose 파일을 읽지 못함
+- 문제: `docker compose -f docker-compose.multi.yml …` 명령이 모두 `go-yaml load error in scanner at L27.C67: mapping values are not allowed in this context`로 실패했다.
+- 원인 가설: YAML에서 따옴표 밖의 `: `(콜론+빈칸)는 '이름: 값'을 나누는 기호다. `command: sh -c '… web 응답: …'`은 작은따옴표로 시작하지 않아서, 문장 속 `응답: `을 구조로 잘못 읽은 것 같다.
+- 확인: 오류 위치 27번째 줄 67번째 글자가 바로 `응답:`의 콜론이었다.
+- 해결: `command`를 목록(`- sh`, `- -c`, `- '…'`)으로 나누고 셋째 줄 전체를 작은따옴표로 감쌌다. 문장 속 `:`도 `=`로 바꿨다. YAML 해석기로 다시 읽어 세 조각으로 읽히는 것을 확인한 뒤 실행해 성공했다.
+
 ## 배운 점
+- U13: 설정값을 환경 변수로 빼 두면 이미지를 다시 만들지 않고 포트·모드를 바꿀 수 있다. Compose 네트워크 안에서는 IP 대신 서비스 이름으로 서로를 찾는다. YAML은 빈칸과 `: ` 하나에도 읽기를 멈추니, 문장은 따옴표로 감싼다.
 - U12: 실행 설정을 파일로 적어 두면 명령을 외울 필요가 없고 누가 해도 같다. 바뀐 게 없으면 Docker가 이전 층을 다시 써서(CACHED) 빌드가 빠르다. Compose는 네트워크까지 알아서 만들고 지운다.
 - U11: 평가 기준 순서로 정리하니 무엇을 왜 했는지 한 줄로 말할 수 있게 됐다. 시연 명령을 미리 정해 두면 평가 때 당황하지 않는다.
 - U10: 증거는 '했다'가 아니라 '보여 줄 수 있어야' 한다. 공개하기 전에 grep으로 민감정보를 기계적으로 찾고, 스크린샷은 필요한 부분만 잘라 넣는다. 컨테이너 안 OS는 내 PC OS 버전과 상관없이 이미지대로 돈다.
@@ -813,5 +910,11 @@ NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS      ← 모�
 | 서비스(service) | Compose에서 실행할 컨테이너 하나하나 |
 | 캐시(CACHED) | 이전에 만든 층을 다시 쓰는 것. 바뀐 게 없으면 다시 만들지 않아 빠르다 |
 | 네트워크 | 컨테이너끼리 이어 주는 길. Compose가 `이름_default`로 자동으로 만든다 |
+| 환경 변수 | 프로그램 바깥에서 넣어 주는 설정값. 코드를 고치지 않고 값만 바꿔 다르게 동작하게 한다 |
+| 템플릿(template) | 빈칸(`${…}`)을 남겨 둔 틀 파일. 실행할 때 실제 값으로 채운다 |
+| 서비스 디스커버리 | 컨테이너가 상대의 IP 대신 이름으로 찾아가는 것 |
+| `depends_on` | 이 서비스는 저 서비스가 준비된 뒤에 시작하라는 순서 설정 |
+| `:ro` | read-only. 연결한 폴더를 읽기만 하게 하는 표시 |
+| YAML 파서 | YAML 파일을 읽어 구조로 바꾸는 프로그램. 문법이 하나라도 틀리면 전체를 못 읽는다 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |

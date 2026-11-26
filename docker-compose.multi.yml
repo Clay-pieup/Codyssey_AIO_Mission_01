@@ -1,0 +1,30 @@
+name: clay-workshop-multi
+
+services:
+  web:
+    build: .
+    image: clay-workshop:1.0
+    environment:
+      WEB_PORT: ${WEB_PORT:-8080}
+      APP_MODE: ${APP_MODE:-dev}
+    volumes:
+      - ./conf/templates:/etc/nginx/templates:ro
+    ports:
+      - "8091:${WEB_PORT:-8080}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${WEB_PORT}/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  checker:
+    image: alpine:3.20
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      TARGET: http://web:${WEB_PORT:-8080}/health
+    command:
+      - sh
+      - -c
+      - 'while true; do echo "$$(date +%H:%M:%S) web 응답 = $$(wget -qO- $$TARGET)"; sleep 5; done'

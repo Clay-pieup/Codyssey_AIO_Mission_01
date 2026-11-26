@@ -1,0 +1,17 @@
+server {
+    listen ${WEB_PORT};
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    add_header X-Workshop "clay-m01" always;
+    add_header X-Mode "${APP_MODE}" always;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location = /health {
+        return 200 "ok\n";
+    }
+}
