@@ -515,8 +515,51 @@ cat: can't open '/tmp/note.txt': No such file or directory   ← 볼륨이 없�
 | 바인드 마운트 | 내 폴더 경로 (`/home/clay/workshop/site`) | 내 폴더에 남음 | U8 `"Type":"bind"` |
 | 볼륨 | 볼륨 이름 (`clay-data`) | Docker 보관함에 남음 | U9 `"Type":"volume"`, 같은 메모 |
 
+### U10 · 편집기 연동·보안·재현성 점검
+**Cursor GitHub 연동** (명세는 VSCode. Cursor는 VSCode 기반 편집기라 같은 기능 → 설계 결정 2)
+- Cursor에서 `Ctrl+Shift+P` → `Git: Clone` → `Clone from GitHub`를 열자 내 GitHub 저장소 목록(`Clay-pieup/Codyssey_AIO_Mission_01`)이 떴다. 목록이 뜬다는 것은 Cursor가 내 GitHub 계정에 로그인돼 있다는 뜻이다. 왼쪽은 이 저장소를 추적하는 소스 제어 패널이다. (실제로 복제하지는 않고 닫았다.)
+- Cursor는 아이콘 막대가 탐색기 위에 가로로 있어 VSCode의 계정 아이콘이 보이지 않았다. 그래서 GitHub 저장소 목록으로 로그인을 확인했다.
+
+![Cursor에서 GitHub 저장소 목록](images/u10_cursor_github.png)
+
+**실행 환경 버전** (README 실행 환경 표의 근거)
+```
+PS> cmd /c ver                    → Microsoft Windows [Version 10.0.26300.9974]
+PS> wsl --version                 → WSL 버전: 3.0.5.0 / 커널 버전: 6.18.58.1-1
+$ head -2 /etc/os-release         → PRETTY_NAME="Ubuntu 26.04.1 LTS"
+$ bash --version | head -1        → GNU bash, version 5.3.9(1)-release (x86_64-pc-linux-gnu)
+```
+- 내 Ubuntu는 26.04.1인데 U6 컨테이너 안은 24.04.5였다. 컨테이너는 내 PC의 OS 버전과 상관없이 이미지(`ubuntu:24.04`)대로 돈다.
+
+**보안 점검** (공개 저장소에 올라가는 모든 파일, CLAUDE.md 제외)
+```
+$ grep -rnIiE "ghp_|github_pat_|token[:=]|password|secret[:=]|BEGIN (RSA|OPENSSH)|@users\.noreply|@gmail|010-|(컴퓨터 이름)|(업무 관련 단어)" --exclude-dir=.git --exclude=CLAUDE.md .
+(없음)
+```
+| 점검 | 결과 |
+|---|---|
+| 토큰·비밀번호·개인키 | 없음 |
+| 이메일(noreply 포함)·전화번호 | 없음. `git config --list` 로그의 이메일은 가렸다 |
+| 컴퓨터 이름·기기 고유번호 | 없음. `set -x` 출력(시행착오 3)과 프롬프트는 기록에서 뺐다 |
+| 업무 관련 정보 | 없음. 브라우저 스크린샷의 즐겨찾기 막대는 잘라냈다 |
+| 교육자료(CLAUDE.md·명세) | `.gitignore`로 커밋 제외, `.dockerignore`로 이미지 빌드에서도 제외 |
+
+**재현성 점검** (README만 보고 따라 할 수 있는가)
+- README 실행 방법의 `git clone` → `docker build` → `docker run -p 8080:8080` 네 줄로 `localhost:8080` 페이지를 볼 수 있다. U7·U8에서 같은 명령으로 확인했다.
+- 버전을 고정했다: `nginx:1.27-alpine`, `alpine:3.20`, `ubuntu:24.04`. 다시 받아도 같은 이미지가 온다.
+- 내 PC에만 해당하는 설정은 README '주의'에 적었다: Windows는 Docker Desktop의 WSL integration이 켜져 있어야 한다(시행착오 5). 실습 폴더 `~/workshop`은 저장소 밖이다. 포트 8080~8082가 비어 있어야 한다. Mac은 명세 안내대로 OrbStack이나 Docker Desktop을 쓰면 같은 `docker` 명령이 동작한다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
+
+| # | 문제 | 해결 | 단위 |
+|---|---|---|---|
+| 1 | 기본 브랜치 설정이 master·main 두 개 | 아래 단계(global)가 이김 → 그대로 둠 | U2 |
+| 2 | `git add` 때 LF→CRLF 경고 | 줄바꿈 자동 변환 안내일 뿐 → 그대로 커밋 | U2 |
+| 3 | `set -x` 출력에 군더더기 줄이 쏟아짐 | 프롬프트 없는 `bash -x <<'EOF'`로 실행 | U4 |
+| 4 | `bash -x <<'EOF'`에서 docker 뒤 명령이 사라짐 | 스크립트 파일 + `bash -x 파일` | U5 |
+| 5 | docker 엔진 연결 실패(`npipe`) | Docker Desktop WSL integration 켬 | U5 |
+| 6 | U6 커밋에 U7 파일이 섞임 | 기록으로 남김, 다음 단위 파일은 push 확인 후 작성 | U7 |
 
 ### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
 - 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
@@ -560,6 +603,7 @@ cat: can't open '/tmp/note.txt': No such file or directory   ← 볼륨이 없�
 - 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
 
 ## 배운 점
+- U10: 증거는 '했다'가 아니라 '보여 줄 수 있어야' 한다. 공개하기 전에 grep으로 민감정보를 기계적으로 찾고, 스크린샷은 필요한 부분만 잘라 넣는다. 컨테이너 안 OS는 내 PC OS 버전과 상관없이 이미지대로 돈다.
 - U9: 컨테이너는 지우면 안의 파일도 사라진다. 남겨야 할 데이터는 볼륨에 둔다. `-v` 앞이 경로면 바인드 마운트, 이름이면 볼륨이다.
 - U8: 컨테이너는 격리돼 있어서 `-p`로 통로를 열어야 밖에서 들어올 수 있다. 앞 숫자(내 PC 문)만 바꾸면 같은 이미지를 여러 개 띄울 수 있다. COPY는 빌드할 때 찍은 사진이라 그대로고, 바인드 마운트는 창문이라 내 PC에서 고치면 바로 보인다.
 - U7: 이미지는 베이스 위에 층을 쌓는 구조라서 베이스의 이름표(maintainer)와 포트 표시(EXPOSE 80)까지 물려받는다. EXPOSE는 안내 표시일 뿐이고 실제 문은 nginx 설정이 정한다. `.dockerignore`로 빌드에 보낼 파일을 줄이면 비밀 파일이 섞이는 것도 막는다.
@@ -672,5 +716,9 @@ cat: can't open '/tmp/note.txt': No such file or directory   ← 볼륨이 없�
 | `docker volume create` / `ls` | 볼륨 만들기 / 볼륨 목록 보기 |
 | `docker rm -f` | 컨테이너를 강제로 멈추고 바로 지우기 |
 | `sleep 3600` | 3600초 기다리기. 실험 동안 컨테이너를 켜 두려고 쓴다 |
+| 명령 팔레트(`Ctrl+Shift+P`) | 편집기의 모든 기능을 이름으로 찾아 실행하는 입력창 |
+| 소스 제어 | 편집기 안에서 Git 변경·커밋·push를 버튼으로 다루는 화면 |
+| Authorize(권한 승인) | 편집기가 내 GitHub 계정을 대신 쓰도록 허락하는 단계. 비밀번호 대신 토큰을 건넨다 |
+| 재현성 점검 | 다른 사람이 README만 보고 같은 결과를 얻을 수 있는지 확인하는 일 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
