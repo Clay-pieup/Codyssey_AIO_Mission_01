@@ -208,6 +208,72 @@ bash: line 12: cd: notes: Permission denied   ← 폴더는 x가 있어야 들�
 | 파일 `empty.txt` | 644 `-rw-r--r--` | 755 `-rwxr-xr-x` | 000으로 막자 `cat` 거부 → 644로 복구 |
 | 폴더 `notes` | 755 `drwxr-xr-x` | 700 `drwx------` | 600(x 없음)으로 바꾸자 `cd` 거부 → 755로 복구 |
 
+### U5 · Docker 점검·기본 운영 명령
+docker 명령은 입력 통로를 가져가서(시행착오 4), 명령을 스크립트 파일 `~/workshop/u5.sh`에 저장한 뒤 `bash -x ~/workshop/u5.sh`로 실행했다. 먼저 Ubuntu에서 Docker 엔진에 연결되는지 확인했다(시행착오 5).
+```
+$ which -a docker
+/usr/bin/docker                      ← Ubuntu용 docker가 맨 위 (WSL integration 켠 뒤)
+/bin/docker
+/Docker/host/bin/docker
+$ docker info --format 'Server: {{.ServerVersion}} / OS: {{.OperatingSystem}}'
+Server: 29.9.3 / OS: Docker Desktop
+
+$ bash -x ~/workshop/u5.sh
++ docker --version
+Docker version 29.9.3, build 5457199
++ docker info | grep -E 'Server Version|Operating System|Containers:|Running:|Stopped:|Images:|CPUs|Total Memory'
+ Containers: 0
+  Running: 0
+  Stopped: 0
+ Images: 0
+ Server Version: 29.9.3
+ Operating System: Docker Desktop
+ CPUs: 14
+ Total Memory: 15.36GiB                ← 엔진(데몬)이 응답함 = 동작 중
++ docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+Status: Downloaded newer image for hello-world:latest
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+(안내문 4단계: 클라이언트가 데몬에 연락 → 데몬이 Docker Hub에서 이미지를 받음
+ → 이미지로 컨테이너를 만들어 실행 → 출력을 내 터미널로 보냄)
++ docker pull alpine:3.20
+3.20: Pulling from library/alpine
+Status: Downloaded newer image for alpine:3.20
+docker.io/library/alpine:3.20
++ docker images
+IMAGE               ID             DISK USAGE   CONTENT SIZE   EXTRA
+alpine:3.20         d9e853e87e55       12.2MB         3.71MB
+hello-world:latest  1e4c05b897a7       25.9kB         9.49kB    U   ← U = 이 이미지로 만든 컨테이너가 있음
++ docker run -d --name u5-ticker alpine:3.20 sh -c 'i=1; while true; do echo "tick $i"; i=$((i+1)); sleep 2; done'
+f64ca20dbca5f7bc01e332e65ea140862db8755de68f8e6a773fc8e0cedcc2fa   ← 컨테이너 ID
++ sleep 7
++ docker ps
+CONTAINER ID   IMAGE         COMMAND                  CREATED         STATUS         PORTS     NAMES
+f64ca20dbca5   alpine:3.20   "sh -c 'i=1; while t…"   7 seconds ago   Up 7 seconds             u5-ticker
++ docker logs u5-ticker
+tick 1
+tick 2
+tick 3
+tick 4
++ docker stats --no-stream u5-ticker
+CONTAINER ID   NAME        CPU %     MEM USAGE / LIMIT     MEM %     NET I/O          BLOCK I/O   PIDS
+f64ca20dbca5   u5-ticker   0.10%     1.734MiB / 15.36GiB   0.01%     1.17kB / 126B    0B / 0B     2
++ docker stop u5-ticker
+u5-ticker
++ docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES     ← 실행 중인 것 없음
++ docker ps -a
+CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS                            NAMES
+f64ca20dbca5   alpine:3.20   "sh -c 'i=1; while t…"   12 seconds ago   Exited (137) Less than a second ago   u5-ticker
+eb4c5212f71e   hello-world   "/hello"                 16 seconds ago   Exited (0) 15 seconds ago            unruffled_elbakyan
+```
+- `Exited (0)`: hello-world는 할 일을 마치고 스스로 끝났다(정상 종료).
+- `Exited (137)`: u5-ticker는 무한 반복이라 스스로 끝나지 않는다. 안의 `sh`가 `docker stop`의 정지 신호를 받아들이지 않아 Docker가 강제로 껐다. 137 = 128 + 9(강제 종료 신호 번호).
+- `unruffled_elbakyan`: `--name`을 주지 않아 Docker가 무작위로 붙인 이름이다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -234,7 +300,23 @@ bash: line 12: cd: notes: Permission denied   ← 폴더는 x가 있어야 들�
 - 확인: 쏟아진 줄의 이름이 `__systemd_osc_context`(프롬프트 도우미)였고, 프롬프트가 뜨는 자리마다 같은 묶음이 반복됐다. 그 줄에는 컴퓨터 이름과 기기 고유번호까지 들어 있었다.
 - 해결: 프롬프트를 띄우지 않는 새 bash에서 명령 묶음만 실행했다 (`bash -x <<'EOF' … EOF`). `+ 명령`과 결과만 깔끔하게 나왔다. 컴퓨터 이름·기기 번호가 든 첫 출력은 기록에 넣지 않았다.
 
+### 4. `bash -x <<'EOF'`로 실행하자 `docker --version`만 하고 끝남
+- 문제: U5 명령 묶음을 `bash -x <<'EOF' … EOF`로 넘겼더니 `docker --version` 결과만 나오고, 다음 명령(`docker info` …)은 `+` 줄조차 찍히지 않은 채 프롬프트로 돌아왔다.
+- 원인 가설: 이 방식은 명령 묶음을 bash의 입력 통로(표준 입력)로 넘긴다. `docker`가 실행되면서 그 통로에 남아 있던 명령들을 자기 입력으로 가져가, bash에는 실행할 명령이 남지 않은 것 같다. U4의 `stat`·`chmod`는 입력을 읽지 않아 문제가 없었다.
+- 확인: 같은 명령을 파일(`~/workshop/u5.sh`)로 저장하고 `bash -x ~/workshop/u5.sh`로 실행하자 13개 명령이 모두 `+` 줄과 함께 끝까지 실행됐다.
+- 해결: docker 실습은 스크립트 파일로 저장한 뒤 `bash -x 파일`로 실행한다. 명령은 파일에서 읽고 입력 통로는 비어 있어서 docker가 가져갈 것이 없다.
+
+### 5. docker 명령마다 `failed to connect to the docker API at npipe://…`
+- 문제: 4번을 고치고 다시 실행하자 `docker --version` 말고는 모든 docker 명령이 `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine … cannot find the file specified`로 실패했다.
+- 원인 가설: (1) Docker 엔진이 꺼져 있다. (2) `npipe`는 Windows 전용 통로라서, Ubuntu가 Ubuntu용이 아닌 Windows용 docker를 실행하고 있다.
+- 확인: `which -a docker` 결과가 `/mnt/c/Users/…/DockerDesktop/resources/bin/docker` 하나뿐이었다(Windows용). Docker Desktop 설정 → WSL integration의 'Enable integration with my default WSL distro'가 꺼져 있었다. `wsl -l -v`로 Ubuntu가 기본 배포판(`*`)인 것도 확인했다.
+- 해결: Docker Desktop을 켜고 WSL integration을 켠 뒤 Apply & Restart Engine을 눌렀다. 새 Ubuntu 탭에서 `which -a docker` 맨 위가 `/usr/bin/docker`, `docker info`가 `Server: 29.9.3 / OS: Docker Desktop`으로 바뀐 것을 확인했다. U1에서 켰다고 생각했지만 실제로는 꺼져 있었으므로, 설정은 화면이 아니라 명령 결과로 확인해야 한다는 것을 배웠다.
+
 ## 배운 점
+- U5: 이미지는 밀키트(레시피+재료), 컨테이너는 그 밀키트로 만든 요리 한 그릇이다. 종료 코드 0은 정상 종료, 137은 강제 종료다. 설정은 화면이 아니라 명령 결과로 확인해야 한다.
+  - **Ubuntu를 쓰는 이유**: 인터넷 서비스를 돌리는 서버는 대부분 리눅스라서, 내 PC도 같은 리눅스(Ubuntu)여야 '내 PC에선 되는데 서버에선 안 되는' 일이 줄어든다. Windows에서는 WSL2로 Ubuntu를 함께 띄운다.
+  - **Docker를 쓰는 이유**: 프로그램과 필요한 재료를 한 상자(컨테이너)에 담아 어느 컴퓨터에서든 똑같이 실행한다(재현성). 상자끼리 섞이지 않고(격리), 컴퓨터를 통째로 흉내 내는 가상머신보다 가볍다(alpine 이미지 12MB).
+  - **둘의 관계**: 컨테이너는 리눅스 기능으로 돈다. 그래서 Windows에서는 Docker Desktop이 WSL2 안에 전용 리눅스(`docker-desktop`)를 띄워 엔진을 돌리고, WSL integration이 내 Ubuntu와 그 엔진을 잇는다.
 - U4: 권한은 실제로 막는다. r이 없으면 주인도 못 읽고, 폴더에 x가 없으면 들어갈 수 없다. 숫자는 r4·w2·x1을 칸마다 더한 값이다.
 - U3: `ls`만 치면 숨김 파일이 안 보이고 `-a`를 붙여야 보인다. 같은 `cd notes`도 서 있는 폴더에 따라 성공하거나 실패한다(상대 경로). `rm`은 휴지통 없이 바로 지운다.
 - U2: commit은 내 PC에 남기는 세이브이고, push는 그 세이브를 GitHub로 복사하는 것이다. Git 설정은 system→global→local 순으로 겹치고 아래가 이긴다. `.gitignore`에 적은 파일은 `git add .`를 해도 담기지 않는다.
@@ -290,5 +372,22 @@ bash: line 12: cd: notes: Permission denied   ← 폴더는 x가 있어야 들�
 | `set -x` / `bash -x` | 명령을 실행하기 직전에 `+ 명령`으로 찍어 주는 설정 / 그 설정으로 새 bash를 실행 |
 | 히어독(`<<'EOF'`) | 여러 줄을 한 덩어리로 묶어 명령에 넘기는 방법. `EOF` 줄까지가 한 덩어리 |
 | 프롬프트 | 명령을 기다리며 줄 앞에 보이는 `clay@…$` 부분 |
+| 운영체제(OS) | 컴퓨터의 기본 설비 역할을 하는 프로그램. Windows·macOS·리눅스 |
+| 리눅스 / Ubuntu | 서버에서 가장 많이 쓰는 무료 운영체제 / 그중 가장 대중적인 배포판 |
+| 배포판(distro) | 리눅스의 한 종류. `wsl -l -v`에서 `*`가 붙은 것이 기본 배포판 |
+| 이미지 | 프로그램과 실행 재료를 묶은 설계도·밀키트. 직접 실행되지는 않는다 |
+| 컨테이너 | 이미지로 실제로 실행한 상자. 이미지 하나로 여러 개를 만들 수 있다 |
+| 데몬(엔진) | 뒤에서 계속 돌며 docker 명령을 받아 처리하는 프로그램 |
+| Docker Hub | 공개 Docker 이미지를 모아 둔 온라인 저장소 |
+| 태그 | 이미지 이름 뒤 `:3.20`처럼 붙는 버전 표시. 없으면 `latest` |
+| `-d` | 컨테이너를 뒤에서 실행하고 바로 터미널을 돌려받는 옵션 |
+| 종료 코드 | 프로그램이 끝날 때 남기는 숫자. 0은 정상, 137은 강제 종료 |
+| 가상머신(VM) | 컴퓨터 한 대를 통째로 흉내 내는 것. 컨테이너보다 무겁다 |
+| 재현성 | 누가 어디서 실행해도 같은 결과가 나오는 성질 |
+| WSL integration | Docker Desktop 엔진을 Ubuntu에서 쓸 수 있게 잇는 설정 |
+| PATH / `which -a` | 명령을 찾아볼 폴더 목록 / 그 명령이 실제 어느 프로그램인지 후보를 모두 보기 |
+| `grep` | 많은 출력 중 원하는 글자가 든 줄만 골라 보기 |
+| 표준 입력(stdin) | 프로그램이 글자를 받아들이는 통로. 보통은 키보드 |
+| 스크립트 | 실행할 명령을 차례로 적어 둔 파일 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
