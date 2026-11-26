@@ -39,10 +39,18 @@ docker run -d --name u8-a -p 8080:8080 clay-workshop:1.0
 cp -r app ~/workshop/site
 docker run -d --name u8-bind -p 8082:8080 -v "$HOME/workshop/site:/usr/share/nginx/html" clay-workshop:1.0
 ```
-- 볼륨 명령은 U9에서 추가한다. 설계 이유: [설계 결정 8·9](LEARNING.md#8-커스텀-이미지는-nginx--내-웹-페이지로-만든다-명세-방식-a)
+- 볼륨 영속성 (컨테이너를 지워도 데이터가 남는지):
+```bash
+docker volume create clay-data
+docker run -d --name u9-vol-1 -v clay-data:/data alpine:3.20 sleep 3600
+docker exec u9-vol-1 sh -c 'echo "saved" > /data/note.txt'
+docker rm -f u9-vol-1
+docker run -d --name u9-vol-2 -v clay-data:/data alpine:3.20 sleep 3600
+docker exec u9-vol-2 cat /data/note.txt     # saved
+``` 설계 이유: [설계 결정 8·9](LEARNING.md#8-커스텀-이미지는-nginx--내-웹-페이지로-만든다-명세-방식-a)
 
 ## 체크리스트
-**필수 (완료 8/13)**
+**필수 (완료 9/13)**
 | # | 항목 | 상태 | 증거·해설 |
 |---|---|---|---|
 | 1 | 공개 저장소 + README 기본 구성 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
@@ -54,7 +62,7 @@ docker run -d --name u8-bind -p 8082:8080 -v "$HOME/workshop/site:/usr/share/ngi
 | 7 | Dockerfile 커스텀 이미지 | ✅ 완료 | [코드 해설](LEARNING.md#핵심-코드-해설) · [수행 로그](LEARNING.md#u7--dockerfile-커스텀-이미지) |
 | 8 | 포트 매핑 접속 증거 | ✅ 완료 | [수행 로그·스크린샷](LEARNING.md#u8--포트-매핑-접속바인드-마운트) |
 | 9 | 바인드 마운트 반영 | ✅ 완료 | [전·후 비교](LEARNING.md#u8--포트-매핑-접속바인드-마운트) |
-| 10 | 볼륨 영속성 | ⬜ 대기 | — |
+| 10 | 볼륨 영속성 | ✅ 완료 | [수행 로그](LEARNING.md#u9--볼륨-영속성) |
 | 11 | Git 설정 + GitHub·편집기 연동 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
 | 12 | 트러블슈팅 2건 이상 | 🔶 진행중 | [시행착오](LEARNING.md#시행착오) (6건, U10에서 최종 정리) |
 | 13 | 보안·재현성 점검 | ⬜ 대기 | — |
@@ -70,6 +78,7 @@ docker run -d --name u8-bind -p 8082:8080 -v "$HOME/workshop/site:/usr/share/ngi
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U9 추가: 볼륨 clay-data 생성·연결, 컨테이너 삭제 전·후 데이터 유지 확인, 볼륨 없을 때와 비교 · 변경: 필수 10 완료
 - U8 추가: 포트 매핑(8080·8081) 접속, 바인드 마운트 전·후 비교(8082), 브라우저 스크린샷 2장 · 변경: 필수 8·9 완료
 - U7 추가: Dockerfile(nginx:1.27-alpine + 내 페이지·설정, 포트 8080, 헤더, 헬스체크), .dockerignore, 빌드·실행 healthy 확인 · 변경: 필수 7 완료 · 수정: U7 파일은 U6 커밋(d5a993d)에 먼저 들어감(시행착오 6)
 - U6 추가: ubuntu 컨테이너 진입(ls·echo·os-release), attach와 exec 차이 관찰(exit 뒤 Exited vs Up) · 변경: 필수 6 완료

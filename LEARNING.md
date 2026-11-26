@@ -477,6 +477,44 @@ X-Workshop: clay-m01                                        ← 내 PC 8080 → 
 |---|---|
 | ![8080 접속](images/u8_port_8080.png) | ![8082 접속](images/u8_bind_8082.png) |
 
+### U9 · 볼륨 영속성
+`~/workshop/u9.sh`를 `bash -x`로 실행했다. 명세 예시(ubuntu + `mydata`)와 겹치지 않게 alpine·`clay-data`를 쓰고, 볼륨 없는 비교 실험을 더했다.
+```
++ docker rm -f u8-a u8-b u8-bind                        ← U8 컨테이너 정리
++ docker volume create clay-data
+clay-data
++ docker volume ls --filter name=clay-data
+DRIVER    VOLUME NAME
+local     clay-data
++ docker run -d --name u9-vol-1 -v clay-data:/data alpine:3.20 sleep 3600
++ docker exec u9-vol-1 sh -c 'echo "saved at $(date +%H:%M:%S)" > /data/note.txt && cat /data/note.txt'
+saved at 10:12:07                                       ← 볼륨에 저장
++ docker rm -f u9-vol-1
++ docker ps -a --filter name=u9-vol
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES     ← 컨테이너 완전히 삭제됨
++ docker run -d --name u9-vol-2 -v clay-data:/data alpine:3.20 sleep 3600
++ docker exec u9-vol-2 cat /data/note.txt
+saved at 10:12:07                                       ← 새 컨테이너에서 같은 메모 = 영속성
++ docker inspect --format '{{json .Mounts}}' u9-vol-2
+[{"Type":"volume","Name":"clay-data","Source":"/var/lib/docker/volumes/clay-data/_data","Destination":"/data","Driver":"local","RW":true,…}]
+
+(비교: 볼륨 없이)
++ docker run -d --name u9-novol alpine:3.20 sleep 3600
++ docker exec u9-novol sh -c 'echo "no volume" > /tmp/note.txt && cat /tmp/note.txt'
+no volume
++ docker rm -f u9-novol
++ docker run -d --name u9-novol alpine:3.20 sleep 3600
++ docker exec u9-novol cat /tmp/note.txt
+cat: can't open '/tmp/note.txt': No such file or directory   ← 볼륨이 없으면 컨테이너와 함께 사라짐
++ docker rm -f u9-vol-2 u9-novol
+```
+
+| 데이터를 둔 곳 | `-v` 앞부분 | 컨테이너를 지우면 | 이번 확인 |
+|---|---|---|---|
+| 컨테이너 안 (볼륨 없음) | 없음 | 함께 사라짐 | U9 `No such file` |
+| 바인드 마운트 | 내 폴더 경로 (`/home/clay/workshop/site`) | 내 폴더에 남음 | U8 `"Type":"bind"` |
+| 볼륨 | 볼륨 이름 (`clay-data`) | Docker 보관함에 남음 | U9 `"Type":"volume"`, 같은 메모 |
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -522,6 +560,7 @@ X-Workshop: clay-m01                                        ← 내 PC 8080 → 
 - 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
 
 ## 배운 점
+- U9: 컨테이너는 지우면 안의 파일도 사라진다. 남겨야 할 데이터는 볼륨에 둔다. `-v` 앞이 경로면 바인드 마운트, 이름이면 볼륨이다.
 - U8: 컨테이너는 격리돼 있어서 `-p`로 통로를 열어야 밖에서 들어올 수 있다. 앞 숫자(내 PC 문)만 바꾸면 같은 이미지를 여러 개 띄울 수 있다. COPY는 빌드할 때 찍은 사진이라 그대로고, 바인드 마운트는 창문이라 내 PC에서 고치면 바로 보인다.
 - U7: 이미지는 베이스 위에 층을 쌓는 구조라서 베이스의 이름표(maintainer)와 포트 표시(EXPOSE 80)까지 물려받는다. EXPOSE는 안내 표시일 뿐이고 실제 문은 nginx 설정이 정한다. `.dockerignore`로 빌드에 보낼 파일을 줄이면 비밀 파일이 섞이는 것도 막는다.
 - U6: 컨테이너는 주 프로그램이 살아 있는 동안만 돈다. 운영 중인 컨테이너를 들여다볼 때는 attach가 아니라 exec로 들어가야 실수로 멈추지 않는다. 컨테이너 안은 내 Ubuntu와 별개의 Ubuntu(24.04.5)였다.
@@ -538,7 +577,7 @@ X-Workshop: clay-m01                                        ← 내 PC 8080 → 
 2. **파일 권한 r/w/x와 755·644**: empty.txt를 000으로 막자 주인인 나도 `cat`이 거부됐고, notes 폴더에서 x를 빼자 `cd`로 들어갈 수 없었다. 파일의 x는 실행, 폴더의 x는 '들어가기'다. 숫자는 r4+w2+x1의 합이라 755=rwxr-xr-x, 644=rw-r--r--다.
 3. **기존 Dockerfile로 커스텀 이미지 만들기**: `FROM nginx:1.27-alpine`으로 시작해 설정을 바꿔 포트를 8080으로, 내 페이지를 넣고, 헤더와 헬스체크를 더했다. 빌드한 뒤 컨테이너가 healthy가 됐고, 페이지와 X-Workshop 헤더로 내 설정이 적용된 것을 확인했다.
 4. **포트 매핑이 필요한 이유**: 컨테이너 안 nginx는 8080만 듣고 있어서, `-p` 없이는 내 PC에서 접속할 수 없다(U7은 컨테이너 안에서만 확인). `-p 8080:8080`, `-p 8081:8080`으로 같은 이미지를 두 문에 띄웠고, 둘 다 200 OK가 왔다.
-5. **Docker 볼륨(영속 데이터)** (U9)
+5. **Docker 볼륨(영속 데이터)**: clay-data 볼륨을 /data에 연결해 'saved at 10:12:07'을 저장하고 컨테이너를 지웠다. 새 컨테이너에 같은 볼륨을 연결하자 같은 메모가 나왔고, 볼륨 없이 저장한 파일은 사라졌다. 그래서 DB처럼 남겨야 할 데이터는 볼륨에 둔다.
 6. **Git과 GitHub의 역할 차이**: 오늘 commit은 내 PC(Git)에 기록을 남긴 것이고, push는 그 기록을 GitHub에 복사한 것이다. 그래서 다른 사람은 GitHub 주소만으로 내 작업을 보고 clone할 수 있다.
 
 ## 용어 사전
@@ -628,5 +667,10 @@ X-Workshop: clay-m01                                        ← 내 PC 8080 → 
 | 바인드 마운트(`-v 내폴더:컨테이너폴더`) | 내 PC 폴더를 컨테이너 안 폴더에 직접 연결. 한쪽에서 고치면 다른 쪽에도 바로 보인다 |
 | curl | 터미널에서 웹 주소로 요청을 보내 응답을 받아 보는 명령. 글자로 된 브라우저 |
 | sed | 파일 안의 글자를 찾아 바꾸는 명령. `s/찾을말/바꿀말/` |
+| 볼륨(volume) | Docker가 따로 관리하는 데이터 보관함. 컨테이너를 지워도 남는다 |
+| 영속성 | 프로그램이나 컨테이너가 사라져도 데이터가 계속 남는 성질 |
+| `docker volume create` / `ls` | 볼륨 만들기 / 볼륨 목록 보기 |
+| `docker rm -f` | 컨테이너를 강제로 멈추고 바로 지우기 |
+| `sleep 3600` | 3600초 기다리기. 실험 동안 컨테이너를 켜 두려고 쓴다 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
