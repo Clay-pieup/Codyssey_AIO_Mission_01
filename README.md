@@ -76,15 +76,15 @@ docker exec vol-2 cat /data/note.txt     # saved
 | 12 | 트러블슈팅 2건 이상 | ✅ 완료 | [시행착오 6건](LEARNING.md#시행착오) |
 | 13 | 보안·재현성 점검 | ✅ 완료 | [U10 점검](LEARNING.md#u10--편집기-연동보안재현성-점검) |
 
-**보너스 (완료 4/5)**: ✅ Compose 기초·운영 명령어 (`docker compose up -d --build` → :8090, [U12](LEARNING.md#u12--docker-compose-기초운영-명령어-보너스-13)) · ✅ 멀티 컨테이너·환경 변수 (`WEB_PORT=9090 APP_MODE=prod docker compose -f docker-compose.multi.yml up -d` → :8091, [U13](LEARNING.md#u13--멀티-컨테이너환경-변수-보너스-24)) · ⬜ SSH 키
+**보너스 (완료 4/5)**: ✅ Compose 기초·운영 명령어 (`docker compose up -d --build` → :8090, [U12](LEARNING.md#u12--docker-compose-기초운영-명령어-보너스-13)) · ✅ 멀티 컨테이너·환경 변수 (`WEB_PORT=9090 APP_MODE=prod docker compose -f docker-compose.multi.yml up -d` → :8091, [U13](LEARNING.md#u13--멀티-컨테이너환경-변수-보너스-24)) · 🔶 SSH 키 ([U14](LEARNING.md#u14--github-ssh-키-보너스-5))
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U14 추가: SSH 키(ed25519+비밀문구) 만들기·GitHub 등록·`ssh -T` 인증, 트러블슈팅 8·9 · 변경: 보너스 5 진행중
 - U12·U13 추가: Compose 단일(8090)·멀티(web+checker, 8091)·환경 변수(WEB_PORT·APP_MODE), 트러블슈팅 7 · 변경: 보너스 1·2·3·4 완료
 - U11 추가: 발표 슬라이드 15장(쉬운 말, 시연 순서 포함), `docs/slides.pdf` · 변경: 상태 평가 대기
 - U10 추가: 실행 환경 버전, 검증 방법 표, Cursor GitHub 연동 스크린샷, 보안·재현성 점검 · 변경: 필수 1·11·12·13 완료 (13/13)
-- U8·U9 추가: 포트 매핑(8080·8081)·바인드 마운트 전·후 비교(스크린샷 2장), 볼륨 영속성 · 변경: 필수 8·9·10 완료
-- U5~U7 추가: Docker 점검·운영, ubuntu 진입·attach/exec, Dockerfile·.dockerignore(healthy), 트러블슈팅 4~6 · 변경: 필수 4~7 완료 · 수정: WSL integration 켬, U7 파일은 d5a993d에 먼저 커밋
+- U5~U9 추가: Docker 점검·운영, ubuntu 진입·attach/exec, Dockerfile·.dockerignore(healthy), 포트 매핑·바인드 마운트(스크린샷 2장), 볼륨 영속성, 트러블슈팅 4~6 · 변경: 필수 4~10 완료 · 수정: WSL integration 켬, U7 파일은 d5a993d에 먼저 커밋
 
 <details><summary>이전 기록</summary>
 

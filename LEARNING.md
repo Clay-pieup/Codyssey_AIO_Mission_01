@@ -77,6 +77,11 @@
 - 결정: nginx 공식 이미지의 템플릿 기능(`/etc/nginx/templates/*.template`을 시작할 때 환경 변수로 채움)을 쓰고, 템플릿 폴더를 읽기 전용으로 연결했다. 웹 서버 + 보조 서비스(checker)는 `docker-compose.multi.yml`에 따로 두고 포트 8091을 썼다.
 - 결과: 얻은 것: 이미지를 다시 만들지 않고 `WEB_PORT=9090 APP_MODE=prod`만으로 포트·모드가 바뀐다. 기존 파일과 결과는 그대로다. / 포기한 것: 실행할 때 `-f docker-compose.multi.yml`을 붙여야 한다.
 
+### 14. SSH 키는 ed25519 + 비밀문구, 저장소 주소를 SSH로 바꾼다 (보너스 5)
+- 맥락: 지금까지는 HTTPS 주소로 push했다(Windows 자격 증명 관리자가 로그인 정보를 기억). 보너스 5는 SSH 키로 push하라고 한다.
+- 결정: `ssh-keygen -t ed25519`로 키를 만들고 비밀문구를 걸었다. 키 메모는 `-C "codyssey-m01"`로 정해 컴퓨터 이름이 들어가지 않게 했다. 키는 저장소 밖 `C:\Users\my\.ssh`에 두고, 공개키만 GitHub에 등록했다. 확인 뒤 origin 주소를 SSH(`git@github.com:…`)로 바꿨다.
+- 결과: 얻은 것: 개인키가 유출돼도 비밀문구 없이는 못 쓰고, GitHub 비밀번호나 토큰을 쓰지 않고 push한다. / 포기한 것: SSH로 push할 때마다 비밀문구를 입력해야 한다.
+
 ## 핵심 코드 해설
 
 <details><summary>.gitignore — 저장소에 올리지 않을 파일 목록</summary>
@@ -724,6 +729,28 @@ checker-1  | 10:59:39 web 응답 = ok                                     ← ch
 ```
 - 이미지는 다시 만들지 않았다. 환경 변수 `WEB_PORT` 하나가 web의 nginx 설정·포트 연결·헬스체크와 checker의 주소에 함께 반영됐다.
 
+### U14 · GitHub SSH 키 (보너스 5)
+PowerShell에서 한 줄씩 실행했다. 개인키·비밀문구·공개키 본문·키 지문은 기록하지 않는다.
+```
+PS> ssh -V                                → OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2
+PS> Test-Path $HOME\.ssh\id_ed25519       → False   (기존 키 없음 → 새로 만들어도 영향 없음)
+PS> ssh-keygen -t ed25519 -C "codyssey-m01"
+Enter file in which to save the key (C:\Users\my/.ssh/id_ed25519):     ← Enter
+Created directory 'C:\\Users\\my/.ssh'.
+Enter passphrase (empty for no passphrase):                             ← 비밀문구 (화면에 안 보임)
+Enter same passphrase again:
+Your identification has been saved in C:\Users\my/.ssh/id_ed25519      ← 개인키 (저장소 밖)
+Your public key has been saved in C:\Users\my/.ssh/id_ed25519.pub      ← 공개키
+(GitHub → Settings → SSH and GPG keys → New SSH key, 제목 'Codyssey M01 PC'로 공개키 등록)
+PS> ssh -T git@github.com
+ED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.   ← GitHub 공식 지문과 같아 yes
+Warning: Permanently added 'github.com' (ED25519) to the list of known hosts.
+Enter passphrase for key 'C:\Users\my/.ssh/id_ed25519':
+Hi Clay-pieup! You've successfully authenticated, but GitHub does not provide shell access.   ← 인증 성공
+```
+- `ssh -T` 줄에 Cursor가 빨간 표시를 붙였지만 실패가 아니다. GitHub은 인증만 해 주고 원격 접속은 열어 주지 않아 종료 코드 1로 끝난다.
+- 저장소 주소를 SSH로 바꾸고 이 기록을 SSH로 push한 결과는 다음 커밋에서 덧붙인다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -736,6 +763,8 @@ checker-1  | 10:59:39 web 응답 = ok                                     ← ch
 | 5 | docker 엔진 연결 실패(`npipe`) | Docker Desktop WSL integration 켬 | U5 |
 | 6 | U6 커밋에 U7 파일이 섞임 | 기록으로 남김, 다음 단위 파일은 push 확인 후 작성 | U7 |
 | 7 | YAML의 `: ` 때문에 Compose 파일을 못 읽음 | 명령을 목록으로 나누고 작은따옴표로 감쌈 | U13 |
+| 8 | `ssh-keygen` 질문에 다음 명령이 답으로 들어감 | Ctrl+C 후 한 줄씩 다시 실행 | U14 |
+| 9 | SSH `Permission denied`·`Key is invalid` | 실제 `.pub` 파일을 복사해 등록한 뒤 다시 시험 | U14 |
 
 ### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
 - 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
@@ -784,7 +813,20 @@ checker-1  | 10:59:39 web 응답 = ok                                     ← ch
 - 확인: 오류 위치 27번째 줄 67번째 글자가 바로 `응답:`의 콜론이었다.
 - 해결: `command`를 목록(`- sh`, `- -c`, `- '…'`)으로 나누고 셋째 줄 전체를 작은따옴표로 감쌌다. 문장 속 `:`도 `=`로 바꿨다. YAML 해석기로 다시 읽어 세 조각으로 읽히는 것을 확인한 뒤 실행해 성공했다.
 
+### 8. `ssh-keygen`의 질문에 다음 명령이 답으로 들어감
+- 문제: 여러 줄을 한꺼번에 붙여 넣자, `ssh-keygen`이 '키를 어디에 저장할까요?'라고 물은 자리에 다음 줄(`Get-Content … | Set-Clipboard`)이 들어갔다.
+- 원인 가설: 질문(입력)을 기다리는 명령은 붙여 넣은 다음 줄을 질문의 답으로 받는다.
+- 확인: 화면의 `Enter file in which to save the key (…): Get-Content …` 줄에서 다음 명령이 답 자리에 들어간 것을 봤다. 저장소 폴더에는 엉뚱한 키 파일이 생기지 않았다.
+- 해결: `Ctrl+C`로 멈추고 `ssh-keygen`만 한 줄로 다시 실행해 저장 위치는 Enter, 비밀문구는 직접 입력했다. 질문이 나오는 명령은 한 줄씩 실행한다.
+
+### 9. `Permission denied (publickey)`와 `Key is invalid`
+- 문제: 첫 `ssh -T git@github.com`이 `Permission denied (publickey)`로 거절됐다. 이어서 GitHub에 키를 등록하자 'Key is invalid. You must supply a key in OpenSSH public key format'이 떴다.
+- 원인 가설: (1) GitHub에 공개키를 등록하기 전에 연결부터 시험했다. (2) Key 칸에 진짜 공개키가 아니라 안내에 있던 설명용 예시(가운데가 `…`로 줄어 있음)를 붙여 넣었다.
+- 확인: 첫 시험에서는 비밀문구를 묻지 않았다(SSH는 서버가 키를 알아볼 때만 비밀문구를 묻는다). 예시 문장에는 `…`가 있어 키 형식이 아니었다.
+- 해결: `notepad $HOME\.ssh\id_ed25519.pub`로 실제 공개키 파일을 열어 복사해 등록했다(`.pub` 없는 개인키는 열지 않음). 다시 `ssh -T`를 하자 비밀문구를 물었고 `Hi Clay-pieup!`이 나왔다.
+
 ## 배운 점
+- U14: 공개키는 GitHub에 주고 개인키는 내 PC에만 둔다. SSH는 서버가 키를 알아볼 때만 비밀문구를 묻는다. 질문이 나오는 명령은 한 줄씩 실행한다.
 - U13: 설정값을 환경 변수로 빼 두면 이미지를 다시 만들지 않고 포트·모드를 바꿀 수 있다. Compose 네트워크 안에서는 IP 대신 서비스 이름으로 서로를 찾는다. YAML은 빈칸과 `: ` 하나에도 읽기를 멈추니, 문장은 따옴표로 감싼다.
 - U12: 실행 설정을 파일로 적어 두면 명령을 외울 필요가 없고 누가 해도 같다. 바뀐 게 없으면 Docker가 이전 층을 다시 써서(CACHED) 빌드가 빠르다. Compose는 네트워크까지 알아서 만들고 지운다.
 - U11: 평가 기준 순서로 정리하니 무엇을 왜 했는지 한 줄로 말할 수 있게 됐다. 시연 명령을 미리 정해 두면 평가 때 당황하지 않는다.
@@ -916,5 +958,11 @@ checker-1  | 10:59:39 web 응답 = ok                                     ← ch
 | `depends_on` | 이 서비스는 저 서비스가 준비된 뒤에 시작하라는 순서 설정 |
 | `:ro` | read-only. 연결한 폴더를 읽기만 하게 하는 표시 |
 | YAML 파서 | YAML 파일을 읽어 구조로 바꾸는 프로그램. 문법이 하나라도 틀리면 전체를 못 읽는다 |
+| SSH | 컴퓨터끼리 안전하게 연결하는 방법. GitHub에서는 비밀번호 대신 키 파일로 나를 증명할 때 쓴다 |
+| 공개키 / 개인키 | 짝을 이루는 두 파일. 공개키(`.pub`)는 GitHub에 주고, 개인키는 나만 가진다 |
+| 비밀문구(passphrase) | 개인키 파일을 한 번 더 잠그는 비밀번호. 파일이 유출돼도 이것을 모르면 쓸 수 없다 |
+| 지문(fingerprint) | 상대 서버가 진짜인지 확인하는 고유 값 |
+| remote URL | 저장소가 push할 주소. `https://…`는 HTTPS, `git@github.com:…`은 SSH 방식 |
+| 종료 코드 1 | 명령이 '정상이 아님'으로 끝났다는 숫자. `ssh -T`는 인증이 성공해도 1로 끝난다 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
