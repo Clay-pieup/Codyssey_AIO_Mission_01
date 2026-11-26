@@ -749,7 +749,20 @@ Enter passphrase for key 'C:\Users\my/.ssh/id_ed25519':
 Hi Clay-pieup! You've successfully authenticated, but GitHub does not provide shell access.   ← 인증 성공
 ```
 - `ssh -T` 줄에 Cursor가 빨간 표시를 붙였지만 실패가 아니다. GitHub은 인증만 해 주고 원격 접속은 열어 주지 않아 종료 코드 1로 끝난다.
-- 저장소 주소를 SSH로 바꾸고 이 기록을 SSH로 push한 결과는 다음 커밋에서 덧붙인다.
+**저장소 주소를 SSH로 바꾸고 SSH로 push**
+```
+PS> git remote set-url origin git@github.com:Clay-pieup/Codyssey_AIO_Mission_01.git
+PS> git remote -v      → origin  git@github.com:Clay-pieup/Codyssey_AIO_Mission_01.git (fetch)/(push)
+PS> git commit -m "Docs: U14 SSH 키(ed25519+비밀문구) 생성·GitHub 등록·인증 기록, 트러블슈팅 8·9"
+[main bdbc41c] …
+PS> git push           (첫 시도: 비밀문구를 3번 틀려 Permission denied → 시행착오 10)
+PS> git push
+Enter passphrase for key '/c/Users/my/.ssh/id_ed25519':
+Writing objects: 100% (4/4), 3.27 KiB | 557.00 KiB/s, done.
+To github.com:Clay-pieup/Codyssey_AIO_Mission_01.git          ← https:// 가 없는 SSH 주소로 push됨
+   26bc5ce..bdbc41c  main -> main
+```
+- push 때 키 경로가 `/c/Users/my/.ssh/…`로 나온 것은 Git이 자기 안에 든 ssh 프로그램을 써서다. PowerShell의 `ssh -T`와 프로그램은 다르지만 같은 키 파일을 쓴다.
 
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
@@ -765,6 +778,7 @@ Hi Clay-pieup! You've successfully authenticated, but GitHub does not provide sh
 | 7 | YAML의 `: ` 때문에 Compose 파일을 못 읽음 | 명령을 목록으로 나누고 작은따옴표로 감쌈 | U13 |
 | 8 | `ssh-keygen` 질문에 다음 명령이 답으로 들어감 | Ctrl+C 후 한 줄씩 다시 실행 | U14 |
 | 9 | SSH `Permission denied`·`Key is invalid` | 실제 `.pub` 파일을 복사해 등록한 뒤 다시 시험 | U14 |
+| 10 | 첫 SSH push 실패(비밀문구 3번 틀림) | 다시 push하며 정확히 입력 | U14 |
 
 ### 1. 기본 브랜치 설정이 두 개(master·main)로 나옴
 - 문제: `git config --list`에 `init.defaultbranch=master`와 `init.defaultbranch=main`이 둘 다 나왔다. 새 저장소가 어느 이름으로 시작하는지 헷갈렸다.
@@ -824,6 +838,12 @@ Hi Clay-pieup! You've successfully authenticated, but GitHub does not provide sh
 - 원인 가설: (1) GitHub에 공개키를 등록하기 전에 연결부터 시험했다. (2) Key 칸에 진짜 공개키가 아니라 안내에 있던 설명용 예시(가운데가 `…`로 줄어 있음)를 붙여 넣었다.
 - 확인: 첫 시험에서는 비밀문구를 묻지 않았다(SSH는 서버가 키를 알아볼 때만 비밀문구를 묻는다). 예시 문장에는 `…`가 있어 키 형식이 아니었다.
 - 해결: `notepad $HOME\.ssh\id_ed25519.pub`로 실제 공개키 파일을 열어 복사해 등록했다(`.pub` 없는 개인키는 열지 않음). 다시 `ssh -T`를 하자 비밀문구를 물었고 `Hi Clay-pieup!`이 나왔다.
+
+### 10. 첫 SSH push가 `Permission denied (publickey)`로 실패
+- 문제: origin을 SSH로 바꾸고 `git push`를 하자 비밀문구를 3번 묻고 `Permission denied (publickey)`, `Could not read from remote repository`로 실패했다.
+- 원인 가설: 키 등록은 `ssh -T`로 확인했으니, 비밀문구를 3번 잘못 입력해 개인키를 열지 못한 것 같다. ssh는 비밀문구를 3번까지 묻고 거절한다.
+- 확인: 바로 다시 `git push`를 하고 비밀문구를 한 번에 맞게 입력하자 성공했다(`To github.com:…`).
+- 해결: 화면에 안 보이는 입력은 천천히 한 번에 입력한다. 키·등록·주소에는 문제가 없었으므로 아무것도 바꾸지 않았다.
 
 ## 배운 점
 - U14: 공개키는 GitHub에 주고 개인키는 내 PC에만 둔다. SSH는 서버가 키를 알아볼 때만 비밀문구를 묻는다. 질문이 나오는 명령은 한 줄씩 실행한다.
