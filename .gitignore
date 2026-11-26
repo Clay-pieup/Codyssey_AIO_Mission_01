@@ -4,6 +4,8 @@ CLAUDE.md
 # 미션 명세 (교육자료, 공개 금지)
 *.pdf
 Mission_*.md
+# 단, docs/ 안의 PDF(내가 만든 발표 슬라이드)는 올린다
+!docs/*.pdf
 
 # 비밀 정보 (토큰·비밀번호·SSH 개인키)
 .env
