@@ -24,10 +24,17 @@
 git clone https://github.com/Clay-pieup/Codyssey_AIO_Mission_01.git
 cd Codyssey_AIO_Mission_01
 ```
-- Docker 실습을 따라 하는 명령은 단위마다 추가한다 (U5~U9).
+- 커스텀 이미지 빌드·실행 (Ubuntu bash, 저장소 폴더에서):
+```bash
+docker build -t clay-workshop:1.0 .
+docker run -d --name u7-web clay-workshop:1.0
+docker ps --filter name=u7-web          # STATUS에 (healthy)
+docker exec u7-web wget -qO- http://127.0.0.1:8080/health   # ok
+```
+- 포트 매핑·마운트·볼륨 명령은 U8~U9에서 추가한다. 설계 이유: [설계 결정 8·9](LEARNING.md#8-커스텀-이미지는-nginx--내-웹-페이지로-만든다-명세-방식-a)
 
 ## 체크리스트
-**필수 (완료 5/13)**
+**필수 (완료 6/13)**
 | # | 항목 | 상태 | 증거·해설 |
 |---|---|---|---|
 | 1 | 공개 저장소 + README 기본 구성 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
@@ -36,12 +43,12 @@ cd Codyssey_AIO_Mission_01
 | 4 | Docker 설치·점검 | ✅ 완료 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) |
 | 5 | Docker 기본 운영 명령 | ✅ 완료 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) |
 | 6 | 컨테이너 실행 실습 (hello-world·ubuntu·attach/exec) | ✅ 완료 | [hello-world](LEARNING.md#u5--docker-점검기본-운영-명령) · [ubuntu·attach/exec](LEARNING.md#u6--ubuntu-컨테이너attachexec-관찰) |
-| 7 | Dockerfile 커스텀 이미지 | ⬜ 대기 | — |
+| 7 | Dockerfile 커스텀 이미지 | ✅ 완료 | [코드 해설](LEARNING.md#핵심-코드-해설) · [수행 로그](LEARNING.md#u7--dockerfile-커스텀-이미지) |
 | 8 | 포트 매핑 접속 증거 | ⬜ 대기 | — |
 | 9 | 바인드 마운트 반영 | ⬜ 대기 | — |
 | 10 | 볼륨 영속성 | ⬜ 대기 | — |
 | 11 | Git 설정 + GitHub·편집기 연동 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
-| 12 | 트러블슈팅 2건 이상 | 🔶 진행중 | [시행착오](LEARNING.md#시행착오) (5건, U10에서 최종 정리) |
+| 12 | 트러블슈팅 2건 이상 | 🔶 진행중 | [시행착오](LEARNING.md#시행착오) (6건, U10에서 최종 정리) |
 | 13 | 보안·재현성 점검 | ⬜ 대기 | — |
 
 **보너스 (완료 0/5)**
@@ -55,6 +62,7 @@ cd Codyssey_AIO_Mission_01
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U7 추가: Dockerfile(nginx:1.27-alpine + 내 페이지·설정, 포트 8080, 헤더, 헬스체크), .dockerignore, 빌드·실행 healthy 확인 · 변경: 필수 7 완료 · 수정: U7 파일은 U6 커밋(d5a993d)에 먼저 들어감(시행착오 6)
 - U6 추가: ubuntu 컨테이너 진입(ls·echo·os-release), attach와 exec 차이 관찰(exit 뒤 Exited vs Up) · 변경: 필수 6 완료
 - U5 추가: Docker 점검(--version·info), hello-world, 이미지 받기·목록, 컨테이너 실행·logs·stats·중지·목록, 트러블슈팅 4·5 · 변경: 필수 4·5 완료, 6 진행중 · 수정: WSL integration 켬
 

@@ -47,6 +47,16 @@
 - 결정: Ubuntu 홈 폴더의 `~/workshop`에서 실습하고, 명령+출력만 이 파일 '수행 로그'에 옮긴다. 명세 예시 경로(`~/codyssey/practice`)는 그대로 쓰지 않았다.
 - 결과: 얻은 것: 저장소에는 결과 기록만 깔끔하게 남는다. / 포기한 것: 실습 폴더 자체는 GitHub에 없어서 로그로만 증명한다.
 
+### 8. 커스텀 이미지는 nginx + 내 웹 페이지로 만든다 (명세 방식 A)
+- 맥락: 명세는 (A) 웹 서버 베이스 + 콘텐츠·설정 교체, (B) 리눅스 베이스 + 기능 추가 중 하나를 고르라고 한다. 이 이미지는 U8 포트 매핑·바인드 마운트, U9 볼륨까지 이어서 쓴다.
+- 결정: `nginx:1.27-alpine`을 베이스로, 내 웹 페이지와 내가 쓴 nginx 설정을 넣는다. 명세 예시(`LABEL`+`ENV`+`COPY site/`)와 겹치지 않게 포트 변경(80→8080), 응답 헤더, 헬스체크를 커스텀 포인트로 잡았다.
+- 결과: 얻은 것: 코드가 짧아 줄마다 설명할 수 있고, HTML만 고쳐 바로 바뀌는 것을 보여 줄 수 있다. / 포기한 것: Python 웹 서버(②)의 프로그래밍 연습, 리눅스 기능 추가(③)는 하지 않았다. ③은 웹 서버가 아니라서 U8과 이어지지 않았다.
+
+### 9. `app/`·`conf/`를 나누고 `.dockerignore`로 CLAUDE.md를 막는다
+- 맥락: 웹 페이지 폴더에 설정 파일이 섞이면 손님이 설정을 내려받을 수 있다. 또 `docker build .`는 폴더 전체를 Docker에 보내는데, 이 폴더에는 공개하면 안 되는 CLAUDE.md가 있다.
+- 결정: 보여 줄 파일은 `app/`, nginx 설정은 `conf/`에 두고 각각 다른 곳으로 COPY한다. `.dockerignore`로 `.git`·`CLAUDE.md`·`*.md`·`*.pdf`를 빌드에 보내지 않는다.
+- 결과: 얻은 것: 빌드에 보낸 크기가 687B뿐이었다(CLAUDE.md 약 30KB 차단). / 포기한 것: 파일이 하나 더(.dockerignore) 늘었다.
+
 ## 핵심 코드 해설
 
 <details><summary>.gitignore — 저장소에 올리지 않을 파일 목록</summary>
@@ -67,7 +77,58 @@ desktop.ini        # Windows가 폴더 설정용으로 자동으로 만드는 �
 
 </details>
 
-Dockerfile·웹 서버 코드 해설은 U7부터 추가한다.
+<details><summary>Dockerfile — 이미지를 만드는 설계도</summary>
+
+```dockerfile
+FROM nginx:1.27-alpine
+LABEL org.opencontainers.image.title="clay-workshop" \
+      org.opencontainers.image.description="Codyssey Mission 01 custom nginx image"
+COPY conf/default.conf /etc/nginx/conf.d/default.conf
+COPY app/ /usr/share/nginx/html/
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/health || exit 1
+```
+- `FROM nginx:1.27-alpine`: 기존 이미지(nginx 웹 서버 + 작은 리눅스 alpine)를 바탕으로 시작한다. 버전을 1.27로 고정해 누가 빌드해도 같은 nginx가 들어간다(재현성).
+- `LABEL …`: 이미지에 이름표(설명)를 붙인다. 실행에는 영향이 없다. `\`는 다음 줄에 이어진다는 뜻이다.
+- `COPY conf/default.conf …`: nginx 기본 설정을 내 설정으로 바꿔치기한다.
+- `COPY app/ …`: 기본 환영 페이지 자리에 내 페이지를 넣는다.
+- `EXPOSE 8080`: "8080번 문으로 손님을 받는다"는 안내 표시다. 이것만으로 밖에서 접속되지는 않고, 밖과 잇는 일은 `docker run -p`가 한다(U8).
+- `HEALTHCHECK …`: Docker가 10초마다 컨테이너 안에서 `/health`를 열어 본다. 3초 안에 답이 없거나 3번 연속 실패하면 `unhealthy`. `|| exit 1`은 실패하면 실패 신호(1)를 보내라는 뜻이다.
+
+</details>
+
+<details><summary>conf/default.conf — nginx가 손님을 받는 방법</summary>
+
+```nginx
+server {
+    listen 8080;                                  # 기본 80번 대신 8080번 문으로 받는다
+    root  /usr/share/nginx/html;                  # 웹 페이지 파일이 있는 폴더
+    index index.html;                             # 주소만 치면 index.html을 보여 준다
+    add_header X-Workshop "clay-m01" always;      # 모든 응답에 '내가 만든 서버' 표시를 붙인다
+    location / { try_files $uri $uri/ =404; }     # 요청한 파일이 있으면 주고, 없으면 404
+    location = /health { return 200 "ok\n"; }     # /health는 파일 없이 바로 "ok"로 답한다 (헬스체크용)
+}
+```
+(해설용으로 줄을 합치고 `#` 설명을 붙였다. 실제 파일은 줄을 나눠 썼다.)
+
+</details>
+
+<details><summary>app/index.html · .dockerignore</summary>
+
+- `app/index.html`: 제목 'Clay의 작업실'과 '이 페이지는 내가 만든 Docker 이미지(clay-workshop) 안의 nginx가 보내 주고 있습니다', '버전: 1.0'을 보여 주는 한 장짜리 페이지. U8에서 이 파일을 바꿔 바인드 마운트를 확인한다.
+- `.dockerignore`: `docker build .`가 Docker에 보내지 않을 파일 목록. `.git`, `CLAUDE.md`, `*.md`, `*.pdf`를 막아 공개하면 안 되는 파일이 이미지에 섞이지 않게 한다.
+
+</details>
+
+**커스텀 포인트와 목적**
+| 커스텀 포인트 | 목적 | 확인 (U7 수행 로그) |
+|---|---|---|
+| 기본 환영 페이지 → 내 `index.html` | 내 이미지가 보내는 페이지인지 눈으로 확인 | 'Clay의 작업실' 페이지가 옴 |
+| 포트 80 → 8080 (`listen 8080`) | 컨테이너 안 포트와 내 PC 포트가 달라도 되는 것을 U8에서 보여 주기 | 8080으로 요청해 200 OK |
+| 응답 헤더 `X-Workshop: clay-m01` | 응답이 기본 nginx가 아니라 내 설정에서 왔다는 증거 | 헤더에 `X-Workshop: clay-m01` |
+| `/health` + `HEALTHCHECK` | 컨테이너가 실제로 일하는지 Docker가 스스로 확인 | `ok`, `(healthy)` |
+| 버전 고정 + `LABEL` | 다시 빌드해도 같은 결과, 이미지 설명 붙이기 | Labels에 title·description |
 
 ## 수행 로그
 
@@ -326,6 +387,43 @@ $ docker ps -a --filter name=u6-ubuntu
 
 **관찰 정리 (내 말로)**: attach로 들어가 exit하자 컨테이너가 Exited가 됐고, exec로 들어가 exit했을 때는 Up이 유지됐다. attach는 주 프로그램에 붙는 것이고, exec는 새 프로그램을 하나 더 여는 것이기 때문이다.
 
+### U7 · Dockerfile 커스텀 이미지
+저장소 폴더에서 `~/workshop/u7.sh`를 `bash -x`로 실행했다. 빌드 출력은 핵심 줄만 남겼다.
+```
++ docker build -t clay-workshop:1.0 .
+ => [internal] load build context
+ => => transferring context: 687B            ← .dockerignore가 CLAUDE.md 등을 막아 작게 보냄
+ => [2/3] COPY conf/default.conf /etc/nginx/conf.d/default.conf
+ => [3/3] COPY app/ /usr/share/nginx/html/
+ => => naming to docker.io/library/clay-workshop:1.0
++ docker images clay-workshop
+IMAGE              ID             DISK USAGE   CONTENT SIZE
+clay-workshop:1.0  f6d5b51e9e01       73.6MB           21MB
++ docker image inspect --format '{{json .Config.Labels}}' clay-workshop:1.0
+{"maintainer":"NGINX Docker Maintainers <docker-maint@nginx.com>",
+ "org.opencontainers.image.description":"Codyssey Mission 01 custom nginx image",
+ "org.opencontainers.image.title":"clay-workshop"}   ← maintainer는 베이스(nginx)에서 물려받음
++ docker run -d --name u7-web clay-workshop:1.0
++ sleep 12
++ docker ps --filter name=u7-web
+CONTAINER ID   IMAGE               STATUS                    PORTS                NAMES
+c6756ad3a07d   clay-workshop:1.0   Up 12 seconds (healthy)   80/tcp, 8080/tcp     u7-web
++ docker exec u7-web wget -qO- http://127.0.0.1:8080/
+<title>Clay의 작업실</title> … <h1>Clay의 작업실</h1> …   ← 내 페이지
++ docker exec u7-web wget -S -qO /dev/null http://127.0.0.1:8080/
+  HTTP/1.1 200 OK
+  Server: nginx/1.27.5
+  Content-Type: text/html
+  X-Workshop: clay-m01                        ← 내 설정의 헤더
++ docker exec u7-web wget -qO- http://127.0.0.1:8080/health
+ok
++ docker inspect --format '{{.State.Health.Status}}' u7-web
+healthy
++ docker stop u7-web
++ docker rm u7-web
+```
+- PORTS의 `80/tcp`는 베이스 nginx 이미지의 `EXPOSE 80`이 물려 내려온 안내 표시다. 실제로는 내 설정대로 8080만 듣는다. EXPOSE는 표시일 뿐이고 실제 문은 설정 파일이 정한다.
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -364,7 +462,14 @@ $ docker ps -a --filter name=u6-ubuntu
 - 확인: `which -a docker` 결과가 `/mnt/c/Users/…/DockerDesktop/resources/bin/docker` 하나뿐이었다(Windows용). Docker Desktop 설정 → WSL integration의 'Enable integration with my default WSL distro'가 꺼져 있었다. `wsl -l -v`로 Ubuntu가 기본 배포판(`*`)인 것도 확인했다.
 - 해결: Docker Desktop을 켜고 WSL integration을 켠 뒤 Apply & Restart Engine을 눌렀다. 새 Ubuntu 탭에서 `which -a docker` 맨 위가 `/usr/bin/docker`, `docker info`가 `Server: 29.9.3 / OS: Docker Desktop`으로 바뀐 것을 확인했다. U1에서 켰다고 생각했지만 실제로는 꺼져 있었으므로, 설정은 화면이 아니라 명령 결과로 확인해야 한다는 것을 배웠다.
 
+### 6. U6 커밋에 U7 파일이 섞여 들어감
+- 문제: U6 커밋(`d5a993d`, 메시지 'U6 ubuntu 컨테이너…')에 LEARNING·README와 함께 U7 파일(`Dockerfile`, `app/index.html`, `conf/default.conf`, `.dockerignore`)이 들어가 push됐다.
+- 원인 가설: U6을 커밋하기 전에 U7 초안 파일을 저장소에 먼저 만들었고, `git add .`가 폴더의 바뀐 파일을 모두 담았다.
+- 확인: 커밋 출력의 `create mode … Dockerfile` 등 4줄과 `6 files changed`로 확인했다.
+- 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
+
 ## 배운 점
+- U7: 이미지는 베이스 위에 층을 쌓는 구조라서 베이스의 이름표(maintainer)와 포트 표시(EXPOSE 80)까지 물려받는다. EXPOSE는 안내 표시일 뿐이고 실제 문은 nginx 설정이 정한다. `.dockerignore`로 빌드에 보낼 파일을 줄이면 비밀 파일이 섞이는 것도 막는다.
 - U6: 컨테이너는 주 프로그램이 살아 있는 동안만 돈다. 운영 중인 컨테이너를 들여다볼 때는 attach가 아니라 exec로 들어가야 실수로 멈추지 않는다. 컨테이너 안은 내 Ubuntu와 별개의 Ubuntu(24.04.5)였다.
 - U5: 이미지는 밀키트(레시피+재료), 컨테이너는 그 밀키트로 만든 요리 한 그릇이다. 종료 코드 0은 정상 종료, 137은 강제 종료다. 설정은 화면이 아니라 명령 결과로 확인해야 한다.
   - **Ubuntu를 쓰는 이유**: 인터넷 서비스를 돌리는 서버는 대부분 리눅스라서, 내 PC도 같은 리눅스(Ubuntu)여야 '내 PC에선 되는데 서버에선 안 되는' 일이 줄어든다. Windows에서는 WSL2로 Ubuntu를 함께 띄운다.
@@ -377,7 +482,7 @@ $ docker ps -a --filter name=u6-ubuntu
 ### 과제 목표, 내 말로
 1. **절대 경로와 상대 경로의 차이**: workshop에서 `cd notes`는 `/home/clay/workshop/notes`로 갔지만, 다른 폴더에서 치면 실패한다(상대 경로). `cd /tmp`는 어디서 쳐도 `/tmp`로 간다(절대 경로). Windows C 드라이브도 Ubuntu에서는 `/mnt/c`라는 절대 경로다.
 2. **파일 권한 r/w/x와 755·644**: empty.txt를 000으로 막자 주인인 나도 `cat`이 거부됐고, notes 폴더에서 x를 빼자 `cd`로 들어갈 수 없었다. 파일의 x는 실행, 폴더의 x는 '들어가기'다. 숫자는 r4+w2+x1의 합이라 755=rwxr-xr-x, 644=rw-r--r--다.
-3. **기존 Dockerfile로 커스텀 이미지 만들기** (U7)
+3. **기존 Dockerfile로 커스텀 이미지 만들기**: `FROM nginx:1.27-alpine`으로 시작해 설정을 바꿔 포트를 8080으로, 내 페이지를 넣고, 헤더와 헬스체크를 더했다. 빌드한 뒤 컨테이너가 healthy가 됐고, 페이지와 X-Workshop 헤더로 내 설정이 적용된 것을 확인했다.
 4. **포트 매핑이 필요한 이유** (U8)
 5. **Docker 볼륨(영속 데이터)** (U9)
 6. **Git과 GitHub의 역할 차이**: 오늘 commit은 내 PC(Git)에 기록을 남긴 것이고, push는 그 기록을 GitHub에 복사한 것이다. 그래서 다른 사람은 GitHub 주소만으로 내 작업을 보고 clone할 수 있다.
@@ -450,5 +555,18 @@ $ docker ps -a --filter name=u6-ubuntu
 | `--filter name=…` | 목록에서 조건에 맞는 것만 보기 |
 | `/etc/os-release` | 리눅스 이름·버전이 적힌 파일 |
 | root | 리눅스의 관리자 계정. 컨테이너 안에서는 기본으로 root다 |
+| Dockerfile | 이미지를 만드는 순서를 적은 설계도. 위에서부터 한 줄씩 실행된다 |
+| 빌드(build) | Dockerfile대로 이미지를 실제로 만드는 일 |
+| FROM / COPY | 바탕 이미지 고르기 / 내 PC 파일을 이미지 안으로 복사하기 |
+| EXPOSE | 컨테이너가 쓰는 포트를 알려 주는 안내 표시. 실제로 열지는 않는다 |
+| HEALTHCHECK | 컨테이너가 정상으로 일하는지 Docker가 주기적으로 확인하는 설정 |
+| LABEL | 이미지에 붙이는 이름표(설명). 베이스의 이름표도 물려받는다 |
+| 빌드 컨텍스트 | `docker build .`의 `.` 폴더. 빌드 때 Docker에 보내는 파일 묶음 |
+| `.dockerignore` | 빌드 컨텍스트에서 뺄 파일 목록 |
+| 레이어 | 이미지를 이루는 층. FROM 위에 COPY 등이 층으로 쌓인다 |
+| nginx | 웹 페이지를 손님(브라우저)에게 보내 주는 웹 서버 프로그램 |
+| 포트 | 한 컴퓨터 안의 '문 번호'. 웹은 보통 80, 여기서는 8080 |
+| 헤더 | 웹 응답 본문 앞에 붙는 머리말 정보 |
+| 127.0.0.1 | '나 자신'을 가리키는 주소. 컨테이너 안에서 쓰면 그 컨테이너 자신 |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
