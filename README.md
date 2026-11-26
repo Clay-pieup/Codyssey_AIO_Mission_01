@@ -8,7 +8,9 @@
 - 리눅스 터미널로 파일·폴더·권한을 다루고, Docker로 컨테이너를 실행·관리한다.
 - 직접 쓴 Dockerfile로 웹 서버 이미지를 만들고, 포트 매핑·바인드 마운트·볼륨을 실행 결과로 검증한다.
 - Git·GitHub로 작업 기록을 관리한다.
-- 결과 화면: (U8에서 브라우저 접속 화면 추가)
+- 결과 화면: 내가 만든 이미지로 띄운 웹 서버에 브라우저로 접속 (`-p 8080:8080`)
+
+  ![localhost:8080 접속 화면](images/u8_port_8080.png)
 
 ## 실행 환경
 | 항목 | 값 |
@@ -31,10 +33,16 @@ docker run -d --name u7-web clay-workshop:1.0
 docker ps --filter name=u7-web          # STATUS에 (healthy)
 docker exec u7-web wget -qO- http://127.0.0.1:8080/health   # ok
 ```
-- 포트 매핑·마운트·볼륨 명령은 U8~U9에서 추가한다. 설계 이유: [설계 결정 8·9](LEARNING.md#8-커스텀-이미지는-nginx--내-웹-페이지로-만든다-명세-방식-a)
+- 포트 매핑·바인드 마운트 (브라우저에서 `http://localhost:8080`, `http://localhost:8082`):
+```bash
+docker run -d --name u8-a -p 8080:8080 clay-workshop:1.0
+cp -r app ~/workshop/site
+docker run -d --name u8-bind -p 8082:8080 -v "$HOME/workshop/site:/usr/share/nginx/html" clay-workshop:1.0
+```
+- 볼륨 명령은 U9에서 추가한다. 설계 이유: [설계 결정 8·9](LEARNING.md#8-커스텀-이미지는-nginx--내-웹-페이지로-만든다-명세-방식-a)
 
 ## 체크리스트
-**필수 (완료 6/13)**
+**필수 (완료 8/13)**
 | # | 항목 | 상태 | 증거·해설 |
 |---|---|---|---|
 | 1 | 공개 저장소 + README 기본 구성 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
@@ -44,8 +52,8 @@ docker exec u7-web wget -qO- http://127.0.0.1:8080/health   # ok
 | 5 | Docker 기본 운영 명령 | ✅ 완료 | [수행 로그](LEARNING.md#u5--docker-점검기본-운영-명령) |
 | 6 | 컨테이너 실행 실습 (hello-world·ubuntu·attach/exec) | ✅ 완료 | [hello-world](LEARNING.md#u5--docker-점검기본-운영-명령) · [ubuntu·attach/exec](LEARNING.md#u6--ubuntu-컨테이너attachexec-관찰) |
 | 7 | Dockerfile 커스텀 이미지 | ✅ 완료 | [코드 해설](LEARNING.md#핵심-코드-해설) · [수행 로그](LEARNING.md#u7--dockerfile-커스텀-이미지) |
-| 8 | 포트 매핑 접속 증거 | ⬜ 대기 | — |
-| 9 | 바인드 마운트 반영 | ⬜ 대기 | — |
+| 8 | 포트 매핑 접속 증거 | ✅ 완료 | [수행 로그·스크린샷](LEARNING.md#u8--포트-매핑-접속바인드-마운트) |
+| 9 | 바인드 마운트 반영 | ✅ 완료 | [전·후 비교](LEARNING.md#u8--포트-매핑-접속바인드-마운트) |
 | 10 | 볼륨 영속성 | ⬜ 대기 | — |
 | 11 | Git 설정 + GitHub·편집기 연동 | 🔶 진행중 | [수행 로그](LEARNING.md#u2--git-설정저장소-만들기) |
 | 12 | 트러블슈팅 2건 이상 | 🔶 진행중 | [시행착오](LEARNING.md#시행착오) (6건, U10에서 최종 정리) |
@@ -62,6 +70,7 @@ docker exec u7-web wget -qO- http://127.0.0.1:8080/health   # ok
 
 ## 진행 기록
 ### 2026-11-26 · 주중 세션
+- U8 추가: 포트 매핑(8080·8081) 접속, 바인드 마운트 전·후 비교(8082), 브라우저 스크린샷 2장 · 변경: 필수 8·9 완료
 - U7 추가: Dockerfile(nginx:1.27-alpine + 내 페이지·설정, 포트 8080, 헤더, 헬스체크), .dockerignore, 빌드·실행 healthy 확인 · 변경: 필수 7 완료 · 수정: U7 파일은 U6 커밋(d5a993d)에 먼저 들어감(시행착오 6)
 - U6 추가: ubuntu 컨테이너 진입(ls·echo·os-release), attach와 exec 차이 관찰(exit 뒤 Exited vs Up) · 변경: 필수 6 완료
 - U5 추가: Docker 점검(--version·info), hello-world, 이미지 받기·목록, 컨테이너 실행·logs·stats·중지·목록, 트러블슈팅 4·5 · 변경: 필수 4·5 완료, 6 진행중 · 수정: WSL integration 켬

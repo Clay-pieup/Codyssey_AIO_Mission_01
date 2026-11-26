@@ -57,6 +57,11 @@
 - 결정: 보여 줄 파일은 `app/`, nginx 설정은 `conf/`에 두고 각각 다른 곳으로 COPY한다. `.dockerignore`로 `.git`·`CLAUDE.md`·`*.md`·`*.pdf`를 빌드에 보내지 않는다.
 - 결과: 얻은 것: 빌드에 보낸 크기가 687B뿐이었다(CLAUDE.md 약 30KB 차단). / 포기한 것: 파일이 하나 더(.dockerignore) 늘었다.
 
+### 10. 바인드 마운트는 저장소 원본이 아니라 복사본에 건다
+- 맥락: 바인드 마운트를 확인하려면 내 PC 쪽 파일을 고쳐야 한다. 저장소의 `app/index.html`을 직접 고치면 실습 때문에 커밋된 파일이 바뀐다. 또 `/mnt/c`(Windows 폴더)보다 Ubuntu 홈 폴더가 Docker에서 더 빠르다.
+- 결정: `app/`을 `~/workshop/site`로 복사하고, 그 복사본을 컨테이너의 웹 폴더에 연결해 고쳤다.
+- 결과: 얻은 것: 저장소 파일은 그대로이고, 이미지 그대로인 컨테이너(8080)와 마운트한 컨테이너(8082)를 나란히 비교할 수 있었다. / 포기한 것: 복사 단계가 하나 늘었다.
+
 ## 핵심 코드 해설
 
 <details><summary>.gitignore — 저장소에 올리지 않을 파일 목록</summary>
@@ -424,6 +429,54 @@ healthy
 ```
 - PORTS의 `80/tcp`는 베이스 nginx 이미지의 `EXPOSE 80`이 물려 내려온 안내 표시다. 실제로는 내 설정대로 8080만 듣는다. EXPOSE는 표시일 뿐이고 실제 문은 설정 파일이 정한다.
 
+### U8 · 포트 매핑 접속·바인드 마운트
+`~/workshop/u8.sh`를 `bash -x`로 실행했다.
+```
++ curl --version | head -1
+curl 8.18.0 (x86_64-pc-linux-gnu) …                         ← curl 설치 확인
++ docker run -d --name u8-a -p 8080:8080 clay-workshop:1.0
++ docker run -d --name u8-b -p 8081:8080 clay-workshop:1.0
++ docker ps --filter name=u8-
+CONTAINER ID   IMAGE               STATUS                             PORTS                                         NAMES
+f7077984d0b2   clay-workshop:1.0   Up 2 seconds (health: starting)    0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp   u8-b
+90903d4c7f8a   clay-workshop:1.0   Up 2 seconds (health: starting)    0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp   u8-a
++ docker port u8-a
+8080/tcp -> 0.0.0.0:8080
+8080/tcp -> [::]:8080
++ curl -s -i http://localhost:8080/ | head -12
+HTTP/1.1 200 OK
+Server: nginx/1.27.5
+Content-Type: text/html
+X-Workshop: clay-m01                                        ← 내 PC 8080 → 컨테이너 8080 연결
+<!DOCTYPE html>
++ curl -s http://localhost:8081/ | grep -E '<h1>|버전'
+  <h1>Clay의 작업실</h1>
+  <p>버전: 1.0</p>                                            ← 같은 이미지를 다른 문(8081)으로도 접속
+
+(바인드 마운트)
++ rm -rf /home/clay/workshop/site
++ cp -r app /home/clay/workshop/site
++ docker run -d --name u8-bind -p 8082:8080 -v /home/clay/workshop/site:/usr/share/nginx/html clay-workshop:1.0
++ docker inspect --format '{{json .Mounts}}' u8-bind
+[{"Type":"bind","Source":"/home/clay/workshop/site","Destination":"/usr/share/nginx/html","RW":true,…}]
++ curl -s http://localhost:8082/ | grep 버전
+  <p>버전: 1.0</p>                                            ← 고치기 전
++ sed -i 's/버전: 1.0/버전: 1.1 (바인드 마운트로 고침)/' /home/clay/workshop/site/index.html
++ grep 버전 /home/clay/workshop/site/index.html
+  <p>버전: 1.1 (바인드 마운트로 고침)</p>                       ← 내 PC 쪽 파일만 고침
++ curl -s http://localhost:8082/ | grep 버전
+  <p>버전: 1.1 (바인드 마운트로 고침)</p>                       ← 고친 후: 다시 빌드 없이 바로 반영
++ curl -s http://localhost:8080/ | grep 버전
+  <p>버전: 1.0</p>                                            ← 이미지에 COPY된 컨테이너는 그대로
+```
+- `0.0.0.0:8080`은 내 PC의 모든 주소에서 8080번으로 오는 요청을 받는다는 뜻이다. `[::]`는 같은 내용을 IPv6로 적은 것이다.
+
+**브라우저 접속 화면** (주소창의 포트와 응답 화면, 즐겨찾기 막대는 잘라냄)
+
+| 포트 매핑 `localhost:8080` (이미지 그대로) | 바인드 마운트 `localhost:8082` (내 PC에서 고친 뒤) |
+|---|---|
+| ![8080 접속](images/u8_port_8080.png) | ![8082 접속](images/u8_bind_8082.png) |
+
 ## 시행착오
 문제가 생길 때마다 '문제 → 원인 가설 → 확인 → 해결/대안' 순서로 적는다. (명세 요구: 2건 이상)
 
@@ -469,6 +522,7 @@ healthy
 - 해결: 파일 내용은 U7에서 빌드한 것과 같아 동작 문제는 없다. 공개된 기록을 덮어쓰는 강제 push 대신 그대로 두고, 이 기록과 U7 커밋 메시지에 밝혔다. 앞으로 다음 단위 파일은 이전 단위 push를 확인한 뒤에 만들고, `git status`로 커밋 대상이 이번 단위 파일뿐인지 본다.
 
 ## 배운 점
+- U8: 컨테이너는 격리돼 있어서 `-p`로 통로를 열어야 밖에서 들어올 수 있다. 앞 숫자(내 PC 문)만 바꾸면 같은 이미지를 여러 개 띄울 수 있다. COPY는 빌드할 때 찍은 사진이라 그대로고, 바인드 마운트는 창문이라 내 PC에서 고치면 바로 보인다.
 - U7: 이미지는 베이스 위에 층을 쌓는 구조라서 베이스의 이름표(maintainer)와 포트 표시(EXPOSE 80)까지 물려받는다. EXPOSE는 안내 표시일 뿐이고 실제 문은 nginx 설정이 정한다. `.dockerignore`로 빌드에 보낼 파일을 줄이면 비밀 파일이 섞이는 것도 막는다.
 - U6: 컨테이너는 주 프로그램이 살아 있는 동안만 돈다. 운영 중인 컨테이너를 들여다볼 때는 attach가 아니라 exec로 들어가야 실수로 멈추지 않는다. 컨테이너 안은 내 Ubuntu와 별개의 Ubuntu(24.04.5)였다.
 - U5: 이미지는 밀키트(레시피+재료), 컨테이너는 그 밀키트로 만든 요리 한 그릇이다. 종료 코드 0은 정상 종료, 137은 강제 종료다. 설정은 화면이 아니라 명령 결과로 확인해야 한다.
@@ -483,7 +537,7 @@ healthy
 1. **절대 경로와 상대 경로의 차이**: workshop에서 `cd notes`는 `/home/clay/workshop/notes`로 갔지만, 다른 폴더에서 치면 실패한다(상대 경로). `cd /tmp`는 어디서 쳐도 `/tmp`로 간다(절대 경로). Windows C 드라이브도 Ubuntu에서는 `/mnt/c`라는 절대 경로다.
 2. **파일 권한 r/w/x와 755·644**: empty.txt를 000으로 막자 주인인 나도 `cat`이 거부됐고, notes 폴더에서 x를 빼자 `cd`로 들어갈 수 없었다. 파일의 x는 실행, 폴더의 x는 '들어가기'다. 숫자는 r4+w2+x1의 합이라 755=rwxr-xr-x, 644=rw-r--r--다.
 3. **기존 Dockerfile로 커스텀 이미지 만들기**: `FROM nginx:1.27-alpine`으로 시작해 설정을 바꿔 포트를 8080으로, 내 페이지를 넣고, 헤더와 헬스체크를 더했다. 빌드한 뒤 컨테이너가 healthy가 됐고, 페이지와 X-Workshop 헤더로 내 설정이 적용된 것을 확인했다.
-4. **포트 매핑이 필요한 이유** (U8)
+4. **포트 매핑이 필요한 이유**: 컨테이너 안 nginx는 8080만 듣고 있어서, `-p` 없이는 내 PC에서 접속할 수 없다(U7은 컨테이너 안에서만 확인). `-p 8080:8080`, `-p 8081:8080`으로 같은 이미지를 두 문에 띄웠고, 둘 다 200 OK가 왔다.
 5. **Docker 볼륨(영속 데이터)** (U9)
 6. **Git과 GitHub의 역할 차이**: 오늘 commit은 내 PC(Git)에 기록을 남긴 것이고, push는 그 기록을 GitHub에 복사한 것이다. 그래서 다른 사람은 GitHub 주소만으로 내 작업을 보고 clone할 수 있다.
 
@@ -568,5 +622,11 @@ healthy
 | 포트 | 한 컴퓨터 안의 '문 번호'. 웹은 보통 80, 여기서는 8080 |
 | 헤더 | 웹 응답 본문 앞에 붙는 머리말 정보 |
 | 127.0.0.1 | '나 자신'을 가리키는 주소. 컨테이너 안에서 쓰면 그 컨테이너 자신 |
+| 포트 매핑(`-p 내PC:컨테이너`) | 내 PC의 문 번호와 컨테이너의 문 번호를 잇는 통로 |
+| localhost | '이 컴퓨터 자신'을 가리키는 이름. `localhost:8080`은 내 PC의 8080번 문 |
+| `0.0.0.0` | 이 컴퓨터의 모든 주소(모든 네트워크 출입구) |
+| 바인드 마운트(`-v 내폴더:컨테이너폴더`) | 내 PC 폴더를 컨테이너 안 폴더에 직접 연결. 한쪽에서 고치면 다른 쪽에도 바로 보인다 |
+| curl | 터미널에서 웹 주소로 요청을 보내 응답을 받아 보는 명령. 글자로 된 브라우저 |
+| sed | 파일 안의 글자를 찾아 바꾸는 명령. `s/찾을말/바꿀말/` |
 | `--show-origin` | 설정값마다 그 값이 어느 파일에서 왔는지 함께 보여 주는 옵션 |
 | 설정 단계(system·global·local) | Git 설정이 쌓이는 세 층. 컴퓨터 전체 → 내 계정 → 이 저장소 순이고 아래층이 이긴다 |
